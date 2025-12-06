@@ -146,7 +146,8 @@ class LogAgent:
             file_pattern="{dataset}/{day}/log-parquet/log_filebeat-server_{day}_{hour}-00-00.parquet",
             load_fields=self.fields,
             return_fields=self.analysis_fields,
-            filter_=(ds.field("@timestamp").cast(pa.timestamp('ms', tz='UTC')) >= start) & (ds.field("@timestamp").cast(pa.timestamp('ms', tz='UTC')) <= end),  # type: ignore
+            # filter_=(ds.field("@timestamp").cast(pa.timestamp('ms', tz='UTC')) >= start) & (ds.field("@timestamp").cast(pa.timestamp('ms', tz='UTC')) <= end),  # type: ignore
+            filter_=(ds.field("@timestamp") >= start) & (ds.field("@timestamp") <= end),
             callback=callback,
             max_workers=max_workers)
 

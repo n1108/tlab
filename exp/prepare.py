@@ -9,6 +9,11 @@ logging.basicConfig(
     datefmt="%Y-%m-%d %H:%M:%S",
 )
 
+# ROOT_DIR = Path("phaseone")
+
+# START_DATE = datetime.strptime("2025-06-06", "%Y-%m-%d")
+# END_DATE = datetime.strptime("2025-06-14", "%Y-%m-%d")
+
 ROOT_DIR = Path("phasetwo")
 
 START_DATE = datetime.strptime("2025-06-17", "%Y-%m-%d")

@@ -73,7 +73,7 @@ def detect_trace_structure_signature(trace: Dict) -> str:
     children = trace['children']
     signatures = [dfs(r, children) for r in roots]
     logger.info(signatures)
-    logger.info('|'.join(sorted(signatures)))
+    # logger.info('|'.join(sorted(signatures)))
     # return '|'.join(sorted(signatures))
     return ""
 

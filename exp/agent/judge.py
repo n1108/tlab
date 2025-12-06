@@ -71,7 +71,8 @@ class JudgeAgent:
         print(f"JudgeAgent: Sending prompt to LLM: {prompt}")
         client = OpenAI(api_key=self.api_key, base_url=self.api_url)
         response = client.chat.completions.create(
-            model="deepseek-r1:671b-0528",
+            model="deepseek-chat",
+            # model="deepseek-r1:671b-0528",
             # model="deepseek-r1:32b",
             messages=[
                 {"role": "system", "content": "You are a root cause analysis expert for distributed systems"},
