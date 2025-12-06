@@ -26,7 +26,46 @@ template_miner = TemplateMiner(persistence, config)
 
 
 def aggregate_errors(log: pd.DataFrame) -> list:
-    aggregates = log.to_dict(orient="records")
+    """
+    Aggregate logs by their template/error pattern to reduce token usage.
+    """
+    if 'error_message' not in log.columns:
+        return []
+
+    grouped = {}
+    
+    for _, row in log.iterrows():
+        raw_msg = row.get('error_message')
+        if not raw_msg:
+            continue
+            
+        try:
+            # error_message is a JSON string created in try_parse
+            parsed = json.loads(raw_msg)
+            template = parsed.get('message', 'Unknown')
+            code = parsed.get('code', '')
+            
+            # Create a unique key for grouping
+            key = (template, code)
+            
+            if key not in grouped:
+                grouped[key] = {
+                    'template': template,
+                    'code': code,
+                    'count': 0,
+                    'example': parsed # Keep one example for details if needed
+                }
+            grouped[key]['count'] += 1
+        except (json.JSONDecodeError, TypeError):
+            continue
+            
+    # Convert to list
+    aggregates = list(grouped.values())
+    
+    # Sort by count descending to show most frequent errors first
+    aggregates.sort(key=lambda x: x['count'], reverse=True)
+    
+    # Limit to top N patterns if needed, but usually templates are few enough
     return aggregates
 
 
@@ -54,10 +93,12 @@ class LogAgent:
             "agent_name", 
             "k8_pod", "message", "k8_node_name"
         ]
+        # Added error_message to analysis_fields so it is preserved by load_parquet_by_hour
         self.analysis_fields = [
             "k8_namespace", "@timestamp",
             "agent_name", 
-            "k8_pod", "message", "k8_node_name"
+            "k8_pod", "message", "k8_node_name",
+            "error_message" 
         ]
 
     def load_logs(self, start: datetime, end: datetime, max_workers=4) -> pd.DataFrame:
@@ -83,12 +124,13 @@ class LogAgent:
                 #     'severity': 'warning',
                 #     'timestamp': '2025-06-17T08:14:31.470555511Z'
                 #     }
-
                 try:
                     log_msg = dict(json.loads(message))
                 except json.JSONDecodeError:
                     log_msg = None
+                
                 if log_msg:
+                    # JSON Log Case
                     error = log_msg.get('error')
                     if error:
                         matches = list(error_pattern.finditer(error))
@@ -114,27 +156,41 @@ class LogAgent:
                         prefix = " -> ".join(prefixes[::-1]) if len(prefixes) > 1 else prefixes[0] if prefixes else ""
                         segment = " -> ".join(segments[::-1]) if len(segments) > 1 else segments[0] if segments else ""
                         return pd.Series([
-                            True, # True: json, False: string, None: not error
+                            True, # True: json error
                             json.dumps({
                                 'code': code,
                                 'desc': desc,
-                                'message': f"{prefix}: {segment}",
+                                'message': f"{prefix}: {segment}", # Template
                                 'http.req.path': clean_path(log_msg.get('http.req.path')),
                                 'http.req.method': log_msg.get('http.req.method'),
                             })
                         ])
                     else:
+                        # JSON log but no explicit 'error' field
+                        # Could check keywords in 'message' field of JSON here if needed
                         return pd.Series([None, message])
                 else:
+                    # Plain Text Log Case
                     log_msg = message
                     for keyword in LogAgent.ERROR_KEYWORDS:
                         if keyword.lower() in log_msg.lower():
-                            return pd.Series([False, message])
+                            # Use Drain3 to mine template for raw error logs as well
+                            result = template_miner.add_log_message(log_msg)
+                            template = result["template_mined"]
+                            
+                            # Normalize structure
+                            return pd.Series([
+                                False, # False: raw string error
+                                json.dumps({
+                                    'code': 'RawKeyword',
+                                    'desc': keyword,
+                                    'message': template
+                                })
+                            ])
                     return pd.Series([None, message])
 
             logs = logs[logs['message'].notna()].reset_index(drop=True)
-            logs[['type', 'error_message']] = logs['message'].apply(
-                try_parse)
+            logs[['type', 'error_message']] = logs['message'].apply(try_parse)
 
             mask = logs['type'].notna()
             logs = logs.loc[mask].reset_index(drop=True)
@@ -146,7 +202,6 @@ class LogAgent:
             file_pattern="{dataset}/{day}/log-parquet/log_filebeat-server_{day}_{hour}-00-00.parquet",
             load_fields=self.fields,
             return_fields=self.analysis_fields,
-            # filter_=(ds.field("@timestamp").cast(pa.timestamp('ms', tz='UTC')) >= start) & (ds.field("@timestamp").cast(pa.timestamp('ms', tz='UTC')) <= end),  # type: ignore
             filter_=(ds.field("@timestamp") >= start) & (ds.field("@timestamp") <= end),
             callback=callback,
             max_workers=max_workers)
@@ -166,26 +221,23 @@ class LogAgent:
         # 'v', 'logging.googleapis.com/trace', 'logging.googleapis.com/spanId', 'logging.googleapis.com/traceSampled',
         # 'http.req.id', 'session', 'timestamp', 'currency', 'id', 'http.resp.bytes', 'http.resp.status', 'http.resp.took_ms', 'curr.new', 'curr.old', 'order', 'logEvent', 'product', 'quantity', 'error']
         for (ns, node, pod), group in pod_groups:
-            error = len(group)
-            if error == 0:
+            error_count = len(group)
+            if error_count == 0:
                 continue
 
+            # Aggregate errors by template to save tokens
             aggregates = aggregate_errors(group)
 
-            for agg in aggregates:
-                try:
-                    agg['message'] = json.loads(agg['message'])
-                except json.JSONDecodeError:
-                    agg['message'] = {'error': agg['message']}
             scores.append({
                 'namespace': ns,
                 'node': node,
                 'pod': pod,
-                'error_count': error,
+                'error_count': error_count,
                 'error_details': aggregates,
             })
-            logger.info(f"Pod {pod} in namespace {ns} on node {node} has {error} error messages.")
-        logger.info(scores)
+            logger.info(f"Pod {pod} in namespace {ns} on node {node} has {error_count} error messages.")
+        
+        # logger.info(scores)
         return scores
 
 # {"failed to complete the order: rpc error: code = Internal desc = cart failure: failed to get user cart during checkout: rpc error: code = FailedPrecondition desc = Can't access cart storage. StackExchange.Redis.RedisTimeoutException: Timeout awaiting response (outbound=0KiB, inbound=0KiB, 5450ms elapsed, timeout is 5000ms), command=HGET, next: INFO, inst: 0, qu: 0, qs: 3, aw: False, bw: SpinningDown, rs: ReadAsync, ws: Idle, in: 0, in-pipe: 0, out-pipe: 0, last-in: 2, cur-in: 0, sync-ops: 2, async-ops: 27312, serverEndpoint: redis-cart:6379, conn-sec: 118978.57, aoc: 1, mc: 1/1/0, mgr: 10 of 10 available, clientName: cartservice-0(SE.Redis-v2.6.122.38350), IOCP: (Busy=0,Free=1000,Min=1,Max=1000), WORKER: (Busy=1,Free=32766,Min=1,Max=32767), POOL: (Threads=3,QueuedItems=0,CompletedItems=1109352,Timers=2), v: 2.6.122.38350 (Please take a look at this article for some common client-side issues that can cause timeouts: https://stackexchange.github.io/StackExchange.Redis/Timeouts)\n   at cartservice.cartstore.RedisCartStore.GetCartAsync(String userId) in /app/cartstore/RedisCartStore.cs:line 248",}

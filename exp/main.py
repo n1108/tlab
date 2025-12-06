@@ -8,7 +8,7 @@ from typing import Dict
 from datetime import datetime
 
 from exp.agent.metric import MetricAgent
-from exp.agent.trace_org import TraceAgent
+from exp.agent.trace import TraceAgent
 from exp.agent.log import LogAgent
 from exp.agent.judge import JudgeAgent
 from exp.utils.log import setup_logger
