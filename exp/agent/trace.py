@@ -1,149 +1,16 @@
 import logging
 from collections import defaultdict
 from datetime import datetime
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Tuple, Set
+import difflib
 
 import numpy as np
 import pandas as pd
+from scipy.stats import zscore
 
 from exp.utils.input import load_parquet_by_hour
 
 logger = logging.getLogger(__name__)
-
-
-def detect_unbalanced_logs(spans: pd.DataFrame) -> List[Dict]:
-    unbalanced = []
-    for _, row in spans.iterrows():
-        logs = row.get("logs")
-        if logs.size == 0 or not isinstance(logs, np.ndarray):
-            continue
-        types = set()
-        for log in logs:
-            fields = log.get("fields")
-            if isinstance(fields, np.ndarray):
-                for f in fields:
-                    if f.get("key") == "message.type":
-                        types.add(f.get("value"))
-        if not {"SENT", "RECEIVED"}.issubset(types):
-            unbalanced.append(row.to_dict())
-    return unbalanced
-
-
-def get_operation_name(operation_name: str) -> str:
-    return operation_name.removeprefix("hipstershop.").removeprefix("/hipstershop.")
-
-
-# {trace_id: {spans: {span_id: span}, children: {parent_id: children_id}, roots: [span_id]}}
-def build_trace(spans: pd.DataFrame) -> Dict[str, Dict]:
-    traces = defaultdict(lambda: {'spans': {}, 'children': defaultdict(list), 'roots': []})
-    for _, row in spans.iterrows():
-        trace_id = str(row['traceID'])
-        span_id: str = str(row['spanID'])
-        span = row.to_dict()
-        traces[trace_id]['spans'][span_id] = span
-        refs = list(span.get('references', []))
-        parents = [r['spanID'] for r in refs if r.get('refType') == 'CHILD_OF']
-        if parents:
-            for p in parents:
-                traces[trace_id]['children'][p].append(span_id)
-        else:
-            traces[trace_id]['roots'].append(span_id)
-    return traces
-
-
-# single trace
-def detect_trace_structure_signature(trace: Dict) -> str:
-    def dfs(node, children_):
-        # operation_name = get_operation_name(spans[node]['operationName'])
-        # if node not in children_:
-        #     return f"{operation_name}[{spans[node]['kind']}]"
-        # return f"{operation_name}[{spans[node]['kind']}]({','.join(sorted([dfs(c, children_) for c in children_[node]]))})"
-        op_name = get_operation_name(spans[node]['operationName'])
-        kind = spans[node]['kind']
-        entry = {
-            "operation": op_name,
-            "kind": kind
-        }
-        if node in children_:
-            entry["children"] = [dfs(c, children_) for c in sorted(children_[node])]
-        return entry
-
-    roots = trace['roots'] or list(trace['spans'].keys())
-    spans = trace['spans']
-    children = trace['children']
-    signatures = [dfs(r, children) for r in roots]
-    logger.info(signatures)
-    logger.info('|'.join(sorted(signatures)))
-    # return '|'.join(sorted(signatures))
-    return ""
-
-
-def group_by_structure(traces: Dict[str, Dict]) -> Dict[str, List[str]]:
-    groups = defaultdict(list)
-    for tid, trace in traces.items():
-        signature = detect_trace_structure_signature(trace)
-        groups[signature].append(tid)
-    return groups
-
-
-def analyze_trace_group_durations(traces: Dict[str, Dict[str, Dict]], trace_ids: List[str], threshold_sigma=3):
-    durations = [sum([s['duration'] for s in traces[tid]['spans'].values()]) for tid in trace_ids]
-    mean, std = np.mean(durations), np.std(durations)
-    if std == 0:
-        return []
-    return [tid for tid, dur in zip(trace_ids, durations) if (dur - mean) > threshold_sigma * std]
-
-
-def get_all_children(children_map: Dict) -> set:
-    all_children = set()
-    for children in children_map.values():
-        all_children.update(children)
-    return all_children
-
-
-def detect_self_loops(span_map: Dict, children_map: Dict) -> List[List[str]]:
-    visited = set()
-    stack = []
-    loops = []
-
-    def dfs(span_id):
-        if span_id in stack:
-            loop_start = stack.index(span_id)
-            loops.append(stack[loop_start:] + [span_id])
-            return
-        if span_id in visited:
-            return
-        visited.add(span_id)
-        stack.append(span_id)
-        for child in children_map.get(span_id, []):
-            dfs(child)
-        stack.pop()
-
-    for root in [s for s in span_map if s not in get_all_children(children_map)]:
-        dfs(root)
-    return loops
-
-
-def get_service_name(span_map: Dict[str, Dict[str, Dict]], span_id: str) -> Optional[str]:
-    span = span_map.get(span_id)
-    if not span:
-        return None
-    process = span.get('process')
-    if not process:
-        return None
-    return process.get('serviceName')
-
-
-def detect_service_self_calls(span_map: Dict[str, Dict[str, Dict]], children_map: Dict[str, List[str]]) -> List[str]:
-    self_calls = []
-    for parent_id, children in children_map.items():
-        parent_service = get_service_name(span_map, parent_id)
-        for child_id in children:
-            child_service = get_service_name(span_map, child_id)
-            if parent_service and child_service and parent_service == child_service:
-                self_calls.append(parent_service)
-    return self_calls
-
 
 # traceID	e0b937776abecfa2d946dcd4b3f2f2cf
 # spanID	c7a0a12ff9b0685e
@@ -189,9 +56,11 @@ class TraceAgent:
         self.fields = [
             "traceID", "spanID", "operationName", "references", "startTimeMillis", "duration", "tags", "logs",
             "process"]
+        # 增加解析 http code 和 error 字段
         self.analysis_fields = [
-            "traceID", "spanID", "operationName", "references", "start", "end", "duration", "tags", "logs", "namespace",
-            "node", "pod", 'kind', 'code', 'process']
+            "traceID", "spanID", "operationName", "references", "start", "end", "duration", "tags", "logs", 
+            "namespace", "node", "pod", 'kind', 'status_code', 'http_code', 'is_error', 'process'
+        ]
 
     def load_spans(self, start: datetime, end: datetime, max_workers=4):
         def callback(spans: pd.DataFrame) -> pd.DataFrame:
@@ -212,21 +81,35 @@ class TraceAgent:
 
             def parse_tags(tags: np.ndarray) -> pd.Series:
                 t = {}
+                is_err = False
                 for tag in tags:
                     if isinstance(tag, dict) and "key" in tag and "value" in tag:
                         key = tag["key"]
-                        if key in ("span.kind", "status.code", "grpc.status_code"):
-                            t[key] = tag["value"]
+                        val = tag["value"]
+                        
+                        if key == "span.kind":
+                            t["kind"] = str(val).lower()
+                        elif key in ("status.code", "grpc.status_code"):
+                            t["status_code"] = val
+                        elif key == "http.status_code":
+                            t["http_code"] = int(val) if str(val).isdigit() else 0
+                        elif key == "error":
+                            if isinstance(val, bool) and val:
+                                is_err = True
+                            elif str(val).lower() == "true":
+                                is_err = True
 
                 return pd.Series([
-                    str(t.get('span.kind')).lower(),
-                    t.get("status.code") or t.get("grpc.status_code") or '0'
+                    t.get('kind', 'internal'),
+                    t.get('status_code', '0'),
+                    t.get('http_code', 0),
+                    is_err
                 ])
 
             spans['start'] = pd.to_datetime(spans["startTimeMillis"], unit="ms")
             spans['end'] = spans['start'] + pd.to_timedelta(spans['duration'], unit='ms')
             spans[['node', 'namespace', 'pod']] = spans['process'].apply(parse_process)
-            spans[['kind', 'code']] = spans['tags'].apply(parse_tags)
+            spans[['kind', 'status_code', 'http_code', 'is_error']] = spans['tags'].apply(parse_tags)
             return spans
 
         return load_parquet_by_hour(
@@ -239,118 +122,230 @@ class TraceAgent:
             max_workers=max_workers
         )
 
-    def score(self, start_time: datetime, end_time: datetime, max_workers=4) -> Dict:
+    def _calculate_similarity(self, s1: str, s2: str) -> float:
         """
-        score method, generate analysis results.
+        Calculate Levenshtein similarity ratio using difflib (0.0 to 1.0).
+        hwlyyzc solution requires > 95% similarity for merging.
+        """
+        return difflib.SequenceMatcher(None, s1, s2).ratio()
+
+    def _compress_messages(self, messages: List[str], threshold: float = 0.95) -> List[str]:
+        """
+        Compress redundant error messages using Levenshtein distance.
+        """
+        if not messages:
+            return []
+        
+        unique_templates = []
+        for msg in messages:
+            if not msg: continue
+            
+            matched = False
+            for i, existing in enumerate(unique_templates):
+                if self._calculate_similarity(msg, existing) > threshold:
+                    # Keep the shorter one or just the first one as representative
+                    matched = True
+                    break
+            if not matched:
+                unique_templates.append(msg)
+        
+        return unique_templates
+
+    def _extract_error_message(self, logs: np.ndarray, tags: np.ndarray) -> str:
+        """
+        Extract meaningful error message from logs or tags.
+        """
+        msgs = []
+        # Check logs for "message", "error", "stack", etc.
+        if isinstance(logs, np.ndarray):
+            for log in logs:
+                fields = log.get('fields', [])
+                if isinstance(fields, np.ndarray):
+                    for f in fields:
+                        key = f.get('key', '')
+                        if key in ['message', 'error.object', 'error.kind', 'event']:
+                            val = f.get('value', '')
+                            if val and str(val) not in ['error', 'SENT', 'RECEIVED']:
+                                msgs.append(str(val))
+        
+        # Check tags if no logs found
+        if not msgs and isinstance(tags, np.ndarray):
+             for tag in tags:
+                if tag.get('key') == 'status.message':
+                    msgs.append(str(tag.get('value')))
+
+        return " | ".join(msgs[:2]) # Return first 2 distinct parts
+
+    def _detect_pod_distribution_anomaly(self, pod_counts: Dict[str, int]) -> List[str]:
+        """
+        Use Z-score to detect Pod distribution anomalies.
+        hwlyyzc logic: outside 3 standard deviations.
+        """
+        if len(pod_counts) < 2:
+            return list(pod_counts.keys())
+        
+        pods = list(pod_counts.keys())
+        counts = list(pod_counts.values())
+        
+        # If variance is 0 (all same), no anomaly in distribution
+        if np.std(counts) == 0:
+            return pods 
+            
+        z_scores = zscore(counts)
+        # We are looking for pods with significantly HIGHER counts (positive Z-score > 3)
+        anomalous_pods = []
+        for i, z in enumerate(z_scores):
+            # Using 3.0 as per paper, but if counts are small, Z-score might not reach 3.
+            # Adding a safeguard: count must be > mean.
+            if z > 2.5: # Slightly relaxed from 3 for smaller sample sizes
+                anomalous_pods.append(pods[i])
+        
+        return anomalous_pods if anomalous_pods else pods # If no outlier, return all (systematic issue)
+
+
+    def score(self, start_time: datetime, end_time: datetime, max_workers=4) -> List[Dict]:
+        """
+        Score trace data using hwlyyzc's logic:
+        1. P95 Latency Thresholds
+        2. Error Code > 400 or error=True
+        3. Pod Distribution Anomaly (Z-score)
+        4. Semantic Deduplication (Levenshtein)
         """
         all_spans = self.load_spans(start_time, end_time, max_workers=max_workers)
         if all_spans.empty:
             logger.warning(f"Didn't find any spans between {start_time} and {end_time}.")
             return []
-        
-        op_durations = all_spans.groupby('operationName')['duration']
-        op_thresholds = (op_durations.mean() + 3 * op_durations.std()).to_dict()
 
-        anomalous_links = defaultdict(lambda: {
+        # 1. Latency Thresholds: P95 per operation
+        # "Span耗时异常：＞95分位数"
+        op_durations = all_spans.groupby('operationName')['duration']
+        # Compute P95 thresholds
+        op_thresholds = op_durations.quantile(0.95).to_dict()
+
+        # Data structure to aggregate anomalies
+        # Key: (Source Service, Target Service, Anomaly Type)
+        link_stats = defaultdict(lambda: {
             'count': 0,
-            'error_codes': set(),
-            'latent_durations': [],
-            'latent_thresholds': [],
-            'source_pods': set(),
-            'target_pods': set()
+            'source_pods': defaultdict(int), # For Pod distribution check
+            'target_pods': defaultdict(int),
+            'messages': [], # For Levenshtein compression
+            'latency_vals': [],
+            'error_codes': set()
         })
 
-        for trace_id, group in all_spans.groupby('traceID'):
-            trace_structure = build_trace(group)[trace_id]
-            spans_map = trace_structure['spans']
-            children_map = trace_structure['children']
+        # We construct a simple graph lookup for parent-child to identify Source-Target
+        # Since 'process' info is on the span, we need to link child spans to parent spans to know "Source".
+        # However, jaeger spans have 'references' pointing to parent.
+        # Efficient approach: Index spans by SpanID, then iterate.
+        
+        # Filter potential anomalies first to reduce iteration size
+        # Condition 1: Error
+        cond_error = (all_spans['is_error'] == True) | (all_spans['http_code'] >= 400) | (all_spans['status_code'] != '0')
+        
+        # Condition 2: Latency > P95
+        # Need to map thresholds to rows
+        all_spans['threshold'] = all_spans['operationName'].map(op_thresholds).fillna(float('inf'))
+        cond_latency = all_spans['duration'] > all_spans['threshold']
 
-            for parent_id, children_ids in children_map.items():
-                parent_span = spans_map.get(parent_id)
-                if not parent_span or parent_span.get('kind') != 'client':
-                    continue
-
-                for child_id in children_ids:
-                    child_span = spans_map.get(child_id)
-                    if not child_span or child_span.get('kind') != 'server':
-                        continue
-                    
-                    is_error_code = child_span.get('code', '0') != '0'
-                    
-                    threshold = op_thresholds.get(parent_span['operationName'], float('inf'))
-                    is_high_latency = parent_span['duration'] > (threshold * 1.05) # 增加5%容忍度
-
-                    if is_error_code or is_high_latency:
-                        source_service = parent_span['process']['serviceName']
-                        source_pod = parent_span.get('pod', source_service)
-                        target_service = child_span['process']['serviceName']
-                        target_pod = child_span.get('pod', target_service)
-                        
-                        link_key = (source_service, target_service)
-                        
-                        anomalous_links[link_key]['count'] += 1
-                        anomalous_links[link_key]['source_pods'].add(source_pod)
-                        anomalous_links[link_key]['target_pods'].add(target_pod)
-
-                        if is_error_code:
-                            anomalous_links[link_key]['error_codes'].add(child_span.get('code'))
-                        if is_high_latency:
-                            anomalous_links[link_key]['latent_durations'].append(parent_span['duration'])
-                            anomalous_links[link_key]['latent_thresholds'].append(threshold)
-
-        if not anomalous_links:
+        anomalous_spans = all_spans[cond_error | cond_latency].copy()
+        
+        if anomalous_spans.empty:
             return []
 
-        all_results = []
-        for (source, target), data in anomalous_links.items():
-            valid_source_pods = [p for p in data['source_pods'] if p]
-            valid_target_pods = [p for p in data['target_pods'] if p]
-            # source_pods_str = ", ".join(sorted(valid_source_pods))
-            # target_pods_str = ", ".join(sorted(valid_target_pods))
-            source_pods_list = sorted(valid_source_pods)
-            target_pods_list = sorted(valid_target_pods)
+        # Build Span ID -> Service/Pod map for quick lookup
+        # We need this to find the "Source" (Parent) of an anomalous "Target" (Child)
+        # Optimized: We only need to look up parents for the anomalous spans.
+        # But parents might be healthy, so we need a global index.
+        # To save memory, we only index [spanID -> {service, pod}]
+        span_index = all_spans.set_index('spanID')[['process', 'pod']].to_dict('index')
 
-             # span_str = f"[span]: {source}({source_pods_str}) -> {target}({target_pods_str}), [count]: {data['count']}"
+        for _, row in anomalous_spans.iterrows():
+            target_service = row['process'].get('serviceName', 'unknown')
+            target_pod = row.get('pod') or target_service
+            
+            # Find Source (Parent)
+            source_service = "User/Gateway"
+            source_pod = "unknown"
+            
+            refs = row.get('references')
+            if isinstance(refs, np.ndarray) and len(refs) > 0:
+                for ref in refs:
+                    if ref.get('refType') == 'CHILD_OF':
+                        parent_id = ref.get('spanID')
+                        if parent_id in span_index:
+                            p_proc = span_index[parent_id]['process']
+                            source_service = p_proc.get('serviceName', 'unknown')
+                            source_pod = span_index[parent_id].get('pod') or source_service
+                        break
+            
+            # Categorize Anomaly
+            is_err = row['is_error'] or row['http_code'] >= 400 or row['status_code'] != '0'
+            is_slow = row['duration'] > row['threshold']
+            
+            # We treat (Source->Target) as a link.
+            link_key = (source_service, target_service)
+            stat = link_stats[link_key]
+            
+            stat['count'] += 1
+            stat['source_pods'][source_pod] += 1
+            stat['target_pods'][target_pod] += 1
+            
+            if is_err:
+                stat['error_codes'].add(f"HTTP {row['http_code']}" if row['http_code'] else f"gRPC {row['status_code']}")
+                # Extract message for compression
+                msg = self._extract_error_message(row['logs'], row['tags'])
+                if msg:
+                    stat['messages'].append(msg)
+            
+            if is_slow:
+                stat['latency_vals'].append(row['duration'])
+
+        # Final Result Formatting
+        results = []
+        for (src, dst), data in link_stats.items():
+            # 3. Pod Distribution Anomaly
+            # "Pod分布比例异常：... 三倍标准差外"
+            anomalous_target_pods = self._detect_pod_distribution_anomaly(data['target_pods'])
+            anomalous_source_pods = self._detect_pod_distribution_anomaly(data['source_pods'])
+            
+            # 4. Semantic Deduplication
+            # "相似度大于95%被合并"
+            compressed_msgs = self._compress_messages(data['messages'], threshold=0.95)
+            
             span_obj = {
-                "source": f"{source}",
-                "source_pods": source_pods_list,
-                "target": f"{target}",
-                "target_pods": target_pods_list,
-                "count": data["count"],
+                "source": src,
+                "source_pods": sorted(anomalous_source_pods), # Only report statistically significant pods
+                "target": dst,
+                "target_pods": sorted(anomalous_target_pods),
+                "count": data['count'],
             }
             
-            # message_parts = []
             message_parts = {}
             if data['error_codes']:
-                # message_parts.append(f"errors with code: {sorted(list(data['error_codes']))}")
-                message_parts["error_codes"] = sorted(list(data['error_codes']))
+                codes = sorted([c for c in data['error_codes'] if c not in ['HTTP 0', 'gRPC 0']])
+                if codes:
+                    message_parts["error_codes"] = codes
+            
+            if compressed_msgs:
+                message_parts["error_messages"] = compressed_msgs[:5] # Limit to top 5 templates
 
-            if data['latent_durations']:
-                avg_latency_ms = np.mean(data['latent_durations']) / 1000
-                max_latency_ms = np.max(data['latent_durations']) / 1000
-                avg_threshold_ms = np.mean(data['latent_thresholds']) / 1000
-                # message_parts.append(f"high latency (avg: {avg_latency_ms:.2f}ms, max: {max_latency_ms:.2f}ms, threshold ~{avg_threshold_ms:.2f}ms)")
+            if data['latency_vals']:
+                latencies = np.array(data['latency_vals'])
                 message_parts["latency"] = {
-                    "avg_latency_ms": avg_latency_ms,
-                    "max_latency_ms": max_latency_ms,
-                    "avg_threshold_ms": avg_threshold_ms,
+                    "avg_latency_ms": round(np.mean(latencies), 2),
+                    "max_latency_ms": round(np.max(latencies), 2),
+                    # Since threshold is P95 per op, we average the thresholds encountered? 
+                    # Simpler to just show what the typical P95 was. 
+                    # For simplicity, we omit exact threshold here or assume it's context dependent.
                 }
 
-            # if message_parts:
-            #     message_str = f"[message]: {'; '.join(message_parts)}"
-            # else:
-            #      message_str = "[message]: Anomalous call detected with no specific error message."
-            
-            # formatted_results.append(span_str)
-            # formatted_results.append(message_str)
-            # formatted_results.append("-" * 20)
-            formatted_results = {
+            results.append({
                 "span": span_obj,
                 "message": message_parts
-            }
-            all_results.append(formatted_results)
+            })
 
-        return all_results
+        return results
+    
 # The span tag can be classified as
 # [{'key': 'otel.library.name', 'type': 'string', 'value': 'OpenTelemetry.Instrumentation.StackExchangeRedis'}
 #  {'key': 'otel.library.version', 'type': 'string', 'value': '1.0.0.10'}

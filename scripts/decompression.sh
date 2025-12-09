@@ -2,7 +2,8 @@
 set -eo pipefail
 
 # directories=("data/" "phaseone/" "phasetwo/")
-directories=("phaseone/" "phasetwo/")
+# directories=("phaseone/" "phasetwo/")
+directories=("dataset/")
 
 process_tar() {
     local file="$1"
