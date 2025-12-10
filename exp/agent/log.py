@@ -3,10 +3,9 @@ import re
 import json
 import pandas as pd
 import pyarrow.dataset as ds
-import pyarrow.compute as pc
 import pyarrow as pa
-
 from datetime import datetime
+from collections import defaultdict
 from drain3 import TemplateMiner
 from drain3.file_persistence import FilePersistence
 from drain3.template_miner_config import TemplateMinerConfig
@@ -15,179 +14,175 @@ from exp.utils.input import load_parquet_by_hour
 
 logger = logging.getLogger(__name__)
 
-error_pattern = re.compile(r'(?P<prefix>.*?)(?P<segment>rpc error: code = [^:]+? desc = (?:(?!rpc error:).)+)',
-                           re.IGNORECASE | re.DOTALL)
-code_desc_pattern = re.compile(r'code\s*=\s*(\w+)\s*desc\s*=\s*(.+)', re.IGNORECASE | re.DOTALL)
-
-config = TemplateMinerConfig()
-config.load("exp/template/drain3_log.ini")
-persistence = FilePersistence("drain3_state.bin")
-template_miner = TemplateMiner(persistence, config)
-
-
-def aggregate_errors(log: pd.DataFrame) -> list:
-    aggregates = log.to_dict(orient="records")
-    return aggregates
-
-
-"""
-k8_namespace	hipstershop
-timestamp	2025-06-05T16:00:27.724Z
-agent_name	filebeat-filebeat-nx7q2
-k8_pod	frontend-2
-message	{"http.req.id":"f86f5b1e-cd6d-40b2-bc62-21d870517fbb","http.req.method":"GET","http.req.path":"/product/2ZYFJ3GM2N","http.resp.bytes":8014,"http.resp.status":200,"http.resp.took_ms":119,"message":"request complete","session":"bc7eadb2-b959-42f7-ab22-24a95c25f3b5","severity":"debug","timestamp":"2025-06-05T16:00:27.724357829Z"}
-k8_node_name	aiops-k8s-04
-"""
-
+# 定义错误关键词 (识别错误模式)
+ERROR_KEYWORDS = {
+    'error', 'exception', 'fail', 'warning', 'critical', 'timeout', 'panic', 'refused', 'reset'
+}
 
 class LogAgent:
     """
-    Enhanced LogAgent with structured log filtering and keyword clustering.
+    LogAgent implementing hwlyyzc's strategy:
+    1. Log Cleaning (Masking numbers/IPs).
+    2. Error Pattern Matching (Keyword filtering).
+    3. Drain3 Template Parsing.
+    4. Anomaly Detection (Frequency burst/New templates).
     """
-    ERROR_KEYWORDS = ['warning', 'error', 'exception', 'fail', 'timeout', 'critical', 'panic']
 
     def __init__(self, root_path: str):
-        print(f"Initializing LogAgent with root path: {root_path}")
         self.root_path = root_path
         self.fields = [
             "k8_namespace", "@timestamp",
-            "agent_name", 
+            "agent_name",
             "k8_pod", "message", "k8_node_name"
         ]
-        self.analysis_fields = [
-            "k8_namespace", "@timestamp",
-            "agent_name", 
-            "k8_pod", "message", "k8_node_name"
+        
+        # 初始化 Drain3
+        config = TemplateMinerConfig()
+        config.load("exp/template/drain3_log.ini")
+        # 不使用持久化，保证每次分析是针对当前窗口的独立统计，或者根据需求开启
+        # persistence = FilePersistence("drain3_state.bin") 
+        self.template_miner = TemplateMiner(None, config)
+        
+        # 预编译正则，用于代码层面的深度清洗 (将数字、哈希值替换为 <*>)
+        self.mask_patterns = [
+            (re.compile(r'(\d{1,3}\.){3}\d{1,3}(:\d+)?'), '<IP>'), # IP
+            (re.compile(r'[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}'), '<UUID>'), # UUID
+            (re.compile(r'\b\d+\b'), '<NUM>'), # Numbers
+            (re.compile(r'0x[0-9a-fA-F]+'), '<HEX>') # Hex
         ]
+
+    def _preprocess_message(self, raw_message: str) -> str | None:
+        """
+        解析 JSON 并进行清洗
+        """
+        log_content = raw_message
+        
+        # 1. JSON 解析
+        if raw_message.strip().startswith('{'):
+            try:
+                log_json = json.loads(raw_message)
+                # 优先获取 error 字段，其次是 message 字段
+                if 'error' in log_json and log_json['error']:
+                    log_content = log_json['error']
+                elif 'message' in log_json:
+                    log_content = log_json['message']
+            except json.JSONDecodeError:
+                pass # 解析失败则当做纯文本处理
+
+        if not isinstance(log_content, str):
+            log_content = str(log_content)
+
+        # 2. 错误关键词过滤 (错误模式匹配)
+        # 只有包含错误关键词的日志才进入后续模板分析，减少噪声
+        if not any(kw in log_content.lower() for kw in ERROR_KEYWORDS):
+            return None
+
+        # 3. 强清洗 (移除变量信息，替换为 <*>)
+        # Drain3 内部有 masking，但这里做显式替换能提高聚类效果
+        # for pattern, mask in self.mask_patterns:
+        #     log_content = pattern.sub(mask, log_content)
+            
+        return log_content
 
     def load_logs(self, start: datetime, end: datetime, max_workers=4) -> pd.DataFrame:
-        def callback(logs: pd.DataFrame) -> pd.DataFrame:
-            def clean_path(path: str | None) -> str | None:
-                if path is None:
-                    return None
-                if path.startswith('/product/'):
-                    return '/product'
-                else:
-                    return path
+        """
+        加载并预处理日志
+        """
+        def callback(df: pd.DataFrame) -> pd.DataFrame:
+            # 应用预处理
+            df['cleaned_message'] = df['message'].apply(self._preprocess_message)
+            # 过滤掉非错误日志 (None)
+            df = df.dropna(subset=['cleaned_message'])
+            return df
 
-            def try_parse(message: str) -> pd.Series:
-                import json
-                import ast
-                # example = {
-                #     'error': 'failed to get ads: rpc error: code = Unavailable desc = connection error: desc = "transport: Error while dialing dial tcp 10.233.8.174:9555: connect: connection refused"',
-                #     'http.req.id': 'cff2e4a5-473b-45fa-a2d7-2dbd7735c410', ''
-                #     'http.req.method': 'GET',
-                #     'http.req.path': '/product/0PUK6V6EV0',
-                #     'message': 'failed to retrieve ads', # only two type, seem like it is valueless
-                #     'session': '03bbc20f-700a-4cbb-8ba3-93e6698feec8',
-                #     'severity': 'warning',
-                #     'timestamp': '2025-06-17T08:14:31.470555511Z'
-                #     }
-
-                try:
-                    log_msg = dict(json.loads(message))
-                except json.JSONDecodeError:
-                    log_msg = None
-                if log_msg:
-                    error = log_msg.get('error')
-                    if error:
-                        matches = list(error_pattern.finditer(error))
-                        prefixes = []
-                        segments = []
-                        codes = []
-                        desc_ = []
-                        for i, m in enumerate(matches):
-                            prefix = m.group("prefix").rstrip(": ") if i == 0 else ""
-                            segment = m.group("segment").rstrip(":")
-                            if prefix:
-                                prefix = template_miner.add_log_message(prefix)
-                                prefixes.append(prefix["template_mined"])
-                            segment = template_miner.add_log_message(segment)
-                            match = re.search(code_desc_pattern, segment["template_mined"])
-                            if match:
-                                code, desc = match.group(1), match.group(2)
-                                codes.append(code)
-                                desc_.append(desc)
-                            segments.append(segment["template_mined"])
-                        code = " -> ".join(codes[::-1]) if len(codes) > 1 else codes[0] if codes else ""
-                        desc = " -> ".join(desc_[::-1]) if len(desc_) > 1 else desc_[0] if desc_ else ""
-                        prefix = " -> ".join(prefixes[::-1]) if len(prefixes) > 1 else prefixes[0] if prefixes else ""
-                        segment = " -> ".join(segments[::-1]) if len(segments) > 1 else segments[0] if segments else ""
-                        return pd.Series([
-                            True, # True: json, False: string, None: not error
-                            json.dumps({
-                                'code': code,
-                                'desc': desc,
-                                'message': f"{prefix}: {segment}",
-                                'http.req.path': clean_path(log_msg.get('http.req.path')),
-                                'http.req.method': log_msg.get('http.req.method'),
-                            })
-                        ])
-                    else:
-                        return pd.Series([None, message])
-                else:
-                    log_msg = message
-                    for keyword in LogAgent.ERROR_KEYWORDS:
-                        if keyword.lower() in log_msg.lower():
-                            return pd.Series([False, message])
-                    return pd.Series([None, message])
-
-            logs = logs[logs['message'].notna()].reset_index(drop=True)
-            logs[['type', 'error_message']] = logs['message'].apply(
-                try_parse)
-
-            mask = logs['type'].notna()
-            logs = logs.loc[mask].reset_index(drop=True)
-
-            return logs
+        # 显式构造 PyArrow Scalar，强制指定精度为 ms 且带 UTC 时区
+        # 这样与 ds.field("@timestamp").cast(...) 后的类型完全一致
+        pa_start = pa.scalar(start, type=pa.timestamp('ms', tz='UTC'))
+        pa_end = pa.scalar(end, type=pa.timestamp('ms', tz='UTC'))
+        
+        # 构建过滤器
+        # 注意：这里假设 Parquet 中的 @timestamp 可能是字符串或不一致的格式，所以保留左边的 cast
+        # 如果 Parquet 原生就是 timestamp[ms, UTC]，左边的 cast 也是安全的
+        filter_expression = (
+            (ds.field("@timestamp").cast(pa.timestamp('ms', tz='UTC')) >= pa_start) & 
+            (ds.field("@timestamp").cast(pa.timestamp('ms', tz='UTC')) <= pa_end)
+        )
 
         return load_parquet_by_hour(
             start, end, self.root_path,
             file_pattern="{dataset}/{day}/log-parquet/log_filebeat-server_{day}_{hour}-00-00.parquet",
             load_fields=self.fields,
-            return_fields=self.analysis_fields,
-            filter_=(ds.field("@timestamp").cast(pa.timestamp('ms', tz='UTC')) >= start) & (ds.field("@timestamp").cast(pa.timestamp('ms', tz='UTC')) <= end),  # type: ignore
+            return_fields=self.fields + ['cleaned_message'],
+            filter_=filter_expression, # 使用新的 filter
             callback=callback,
-            max_workers=max_workers)
+            max_workers=max_workers
+        )
 
     def score(self, start_time: datetime, end_time: datetime, max_workers=4):
         """
-        Inspect logs between start_time and end_time for error events.
-        Returns a dict with an observation and details of log events.
+        主分析函数：模板聚类 + 频率统计
         """
-        log = self.load_logs(start_time, end_time, max_workers=max_workers)
-        if log.empty:
+        # 1. 加载过滤后的错误日志
+        logs_df = self.load_logs(start_time, end_time, max_workers=max_workers)
+        
+        if logs_df.empty:
+            logger.info("No error logs found in the specified time range.")
             return []
-        pod_groups = log.groupby(['k8_namespace', 'k8_node_name', 'k8_pod'])
-        scores = []
-        # message keys: [
-        # 'severity', 'time', 'message', 'pid', 'hostname', 'name', 'http.req.method', 'http.req.path',
-        # 'v', 'logging.googleapis.com/trace', 'logging.googleapis.com/spanId', 'logging.googleapis.com/traceSampled',
-        # 'http.req.id', 'session', 'timestamp', 'currency', 'id', 'http.resp.bytes', 'http.resp.status', 'http.resp.took_ms', 'curr.new', 'curr.old', 'order', 'logEvent', 'product', 'quantity', 'error']
-        for (ns, node, pod), group in pod_groups:
-            error = len(group)
-            if error == 0:
-                continue
 
-            aggregates = aggregate_errors(group)
+        # 2. Drain3 模板聚类 (PPT: 模板解析)
+        # 统计结构: pod -> template_id -> {count, sample, template_str}
+        pod_stats = defaultdict(lambda: defaultdict(lambda: {'count': 0, 'sample': '', 'template': ''}))
+        
+        # 重新初始化 miner 以保证分析的是当前窗口的分布
+        # 注意：真实场景下检测“新出现”需要持久化状态，但在此离线分析逻辑中，
+        # 我们假设窗口内的错误日志本身就是异常的候选。
+        self.template_miner = TemplateMiner(None, self.template_miner.config)
 
-            for agg in aggregates:
-                try:
-                    agg['message'] = json.loads(agg['message'])
-                except json.JSONDecodeError:
-                    agg['message'] = {'error': agg['message']}
-            scores.append({
-                'namespace': ns,
-                'node': node,
-                'pod': pod,
-                'error_count': error,
-                'error_details': aggregates,
-            })
-            logger.info(f"Pod {pod} in namespace {ns} on node {node} has {error} error messages.")
-        logger.info(scores)
-        return scores
+        for _, row in logs_df.iterrows():
+            pod_name = row['k8_pod']
+            # 去掉 Pod 后面的随机字符，聚合到 workload 级别 (例如 cartservice-2 -> cartservice)
+            # 这一步对于聚合统计很重要
+            service_name = "-".join(pod_name.split("-")[:-1]) if "-" in pod_name else pod_name
+            
+            content = row['cleaned_message']
+            
+            # Drain3 添加日志并获取 Cluster
+            cluster = self.template_miner.add_log_message(content)
+            template_id = cluster["cluster_id"]
+            template_str = cluster["template_mined"]
 
-# {"failed to complete the order: rpc error: code = Internal desc = cart failure: failed to get user cart during checkout: rpc error: code = FailedPrecondition desc = Can't access cart storage. StackExchange.Redis.RedisTimeoutException: Timeout awaiting response (outbound=0KiB, inbound=0KiB, 5450ms elapsed, timeout is 5000ms), command=HGET, next: INFO, inst: 0, qu: 0, qs: 3, aw: False, bw: SpinningDown, rs: ReadAsync, ws: Idle, in: 0, in-pipe: 0, out-pipe: 0, last-in: 2, cur-in: 0, sync-ops: 2, async-ops: 27312, serverEndpoint: redis-cart:6379, conn-sec: 118978.57, aoc: 1, mc: 1/1/0, mgr: 10 of 10 available, clientName: cartservice-0(SE.Redis-v2.6.122.38350), IOCP: (Busy=0,Free=1000,Min=1,Max=1000), WORKER: (Busy=1,Free=32766,Min=1,Max=32767), POOL: (Threads=3,QueuedItems=0,CompletedItems=1109352,Timers=2), v: 2.6.122.38350 (Please take a look at this article for some common client-side issues that can cause timeouts: https://stackexchange.github.io/StackExchange.Redis/Timeouts)\n   at cartservice.cartstore.RedisCartStore.GetCartAsync(String userId) in /app/cartstore/RedisCartStore.cs:line 248",}
-# TODO: 1. error only occurs in requests
-# TODO: 2. add error message chain from current to downstream ✅
-# TODO: 3. desc need to be handle (ignore number...) ✅
+            stats = pod_stats[service_name][template_id]
+            stats['count'] += 1
+            stats['template'] = template_str
+            # 保留第一条原始日志作为样本（未清洗前的message中提取的内容）
+            if stats['count'] == 1:
+                stats['sample'] = content
+
+        # 3. 结果格式化与筛选 (PPT: 异常日志压缩)
+        results = []
+        
+        for service, templates in pod_stats.items():
+            error_count = sum(t['count'] for t in templates.values())
+            
+            # 提取 Top N 频率的错误模板
+            # PPT 提到关注频率突增，这里输出频率最高的错误模板
+            sorted_templates = sorted(templates.items(), key=lambda x: x[1]['count'], reverse=True)
+            
+            top_templates = []
+            for tid, stat in sorted_templates[:5]: # 取前5个主要错误
+                top_templates.append({
+                    "template": stat['template'],
+                    "count": stat['count'],
+                    "sample": stat['sample']
+                })
+
+            if error_count > 0:
+                results.append({
+                    "component": service, # 使用 Service 名而不是 Pod 名，便于后续归因
+                    "error_count": error_count,
+                    "top_patterns": top_templates,
+                    "observation": f"Service {service} has {error_count} error logs. Top pattern: {top_templates[0]['template']}"
+                })
+
+        logger.info(f"Log analysis found anomalies in {len(results)} components.")
+        return results
