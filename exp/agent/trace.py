@@ -332,7 +332,6 @@ class TraceAgent:
         for (src, dst), data in link_stats.items():
             # 语义去重
             compressed_msgs = self._compress_messages(data['messages'], threshold=0.95)
-            
             results.append({
                 "span": {
                     "source": src,
@@ -342,7 +341,7 @@ class TraceAgent:
                 },
                 "message": {
                     "error_messages": compressed_msgs[:3],
-                    "latency": {"avg": np.mean(data['latency_vals'])} if data['latency_vals'] else {}
+                    "latency": {"avg": round(float(np.mean(data['latency_vals'])), 2)} if data['latency_vals'] else {}
                 }
             })
         return results
