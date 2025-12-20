@@ -1,6 +1,6 @@
 import logging
 from collections import defaultdict
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Dict, List, Optional, Tuple, Set
 import difflib
 
@@ -56,7 +56,6 @@ class TraceAgent:
         self.fields = [
             "traceID", "spanID", "operationName", "references", "startTimeMillis", "duration", "tags", "logs",
             "process"]
-        # 增加解析 http code 和 error 字段
         self.analysis_fields = [
             "traceID", "spanID", "operationName", "references", "start", "end", "duration", "tags", "logs", 
             "namespace", "node", "pod", 'kind', 'status_code', 'http_code', 'is_error', 'process'
@@ -64,52 +63,66 @@ class TraceAgent:
 
     def load_spans(self, start: datetime, end: datetime, max_workers=4):
         def callback(spans: pd.DataFrame) -> pd.DataFrame:
-            def parse_process(process: Dict) -> pd.Series:
-                t = {}
-                tags = process.get('tags')
-                if isinstance(tags, np.ndarray):
-                    for tag in tags:
-                        if isinstance(tag, dict) and "key" in tag and "value" in tag:
-                            key = tag["key"]
-                            if key in ("node_name", "namespace", "name"):
-                                t[key] = tag["value"]
-                return pd.Series([
-                    t.get('node_name'),
-                    t.get('namespace'),
-                    t.get('name'),
-                ])
-
-            def parse_tags(tags: np.ndarray) -> pd.Series:
-                t = {}
-                is_err = False
-                for tag in tags:
-                    if isinstance(tag, dict) and "key" in tag and "value" in tag:
-                        key = tag["key"]
-                        val = tag["value"]
-                        
-                        if key == "span.kind":
-                            t["kind"] = str(val).lower()
-                        elif key in ("status.code", "grpc.status_code"):
-                            t["status_code"] = val
-                        elif key == "http.status_code":
-                            t["http_code"] = int(val) if str(val).isdigit() else 0
-                        elif key == "error":
-                            if isinstance(val, bool) and val:
-                                is_err = True
-                            elif str(val).lower() == "true":
-                                is_err = True
-
-                return pd.Series([
-                    t.get('kind', 'internal'),
-                    t.get('status_code', '0'),
-                    t.get('http_code', 0),
-                    is_err
-                ])
-
+            # 1. 向量化处理时间（Pandas 原生向量化已经很快，保留）
             spans['start'] = pd.to_datetime(spans["startTimeMillis"], unit="ms")
             spans['end'] = spans['start'] + pd.to_timedelta(spans['duration'], unit='ms')
-            spans[['node', 'namespace', 'pod']] = spans['process'].apply(parse_process)
-            spans[['kind', 'status_code', 'http_code', 'is_error']] = spans['tags'].apply(parse_tags)
+
+            # --- 优化核心：使用列表推导式代替 apply ---
+            
+            # 2. 优化 process 字段解析
+            # 将 Series 转为原生 List，避免 Pandas 每一行创建 Series 的开销
+            process_raw = spans['process'].to_list()
+            nodes, nss, pods = [], [], []
+            
+            for p in process_raw:
+                # 预设默认值
+                node, ns, pod = None, None, None
+                tags = p.get('tags')
+                if isinstance(tags, (list, np.ndarray)):
+                    for tag in tags:
+                        # 假设 tag 是字典
+                        k = tag.get('key')
+                        if k == 'node_name': node = tag.get('value')
+                        elif k == 'namespace': ns = tag.get('value')
+                        elif k == 'name': pod = tag.get('value')
+                nodes.append(node)
+                nss.append(ns)
+                pods.append(pod)
+                
+            spans['node'] = nodes
+            spans['namespace'] = nss
+            spans['pod'] = pods
+
+            # 3. 优化 tags 字段解析
+            tags_raw = spans['tags'].to_list()
+            kinds, status_codes, http_codes, is_errors = [], [], [], []
+            
+            for tags in tags_raw:
+                kind, sc, hc, err = 'internal', '0', 0, False
+                if isinstance(tags, (list, np.ndarray)):
+                    for tag in tags:
+                        k = tag.get('key')
+                        v = tag.get('value')
+                        if k == "span.kind": 
+                            kind = str(v).lower()
+                        elif k in ("status.code", "grpc.status_code"): 
+                            sc = v
+                        elif k == "http.status_code": 
+                            # 避免对非数字调用 int()
+                            hc = int(v) if (isinstance(v, (int, float)) or (isinstance(v, str) and v.isdigit())) else 0
+                        elif k == "error": 
+                            err = (v is True or str(v).lower() == "true")
+                            
+                kinds.append(kind)
+                status_codes.append(sc)
+                http_codes.append(hc)
+                is_errors.append(err)
+                
+            spans['kind'] = kinds
+            spans['status_code'] = status_codes
+            spans['http_code'] = http_codes
+            spans['is_error'] = is_errors
+
             return spans
 
         return load_parquet_by_hour(
@@ -203,147 +216,137 @@ class TraceAgent:
         return anomalous_pods if anomalous_pods else pods # If no outlier, return all (systematic issue)
 
 
+    def _get_stats_per_link(self, df: pd.DataFrame):
+        """
+        统计每个调用链路(src, dst, op)的错误和慢调用频率
+        """
+        stats = defaultdict(lambda: {'error_count': 0, 'slow_count': 0, 'total': 0})
+        
+        # 预先计算 P95 阈值
+        op_thresholds = df.groupby('operationName')['duration'].quantile(0.95).to_dict()
+        
+        # 建立索引方便查找父节点（简化版，实际可使用 span_index）
+        for _, row in df.iterrows():
+            dst_svc = row['process'].get('serviceName', 'unknown')
+            op = row['operationName']
+            
+            # 判定异常
+            is_err = row['is_error'] or row['http_code'] >= 400 or row['status_code'] != '0'
+            is_slow = row['duration'] > op_thresholds.get(op, float('inf'))
+            
+            key = (dst_svc, op) # 这里简化为目标服务和操作，也可以加上源服务
+            stats[key]['total'] += 1
+            if is_err: stats[key]['error_count'] += 1
+            if is_slow: stats[key]['slow_count'] += 1
+            
+        return stats, op_thresholds
+
     def score(self, start_time: datetime, end_time: datetime, max_workers=4) -> List[Dict]:
         """
-        Score trace data using hwlyyzc's logic:
-        1. P95 Latency Thresholds
-        2. Error Code > 400 or error=True
-        3. Pod Distribution Anomaly (Z-score)
-        4. Semantic Deduplication (Levenshtein)
+        按照 hwlyyzc 方案修复版：引入时间维度 Z-score 背景降噪
         """
-        all_spans = self.load_spans(start_time, end_time, max_workers=max_workers)
-        if all_spans.empty:
-            logger.warning(f"Didn't find any spans between {start_time} and {end_time}.")
+        # 1. 加载历史基准数据 (例如异常前 30 分钟)
+        baseline_start = start_time - timedelta(minutes=30)
+        logger.info(f"Loading baseline from {baseline_start} to {start_time}")
+        baseline_spans = self.load_spans(baseline_start, start_time, max_workers=max_workers)
+        
+        # 2. 加载当前异常数据
+        logger.info(f"Loading anomalous data from {start_time} to {end_time}")
+        current_spans = self.load_spans(start_time, end_time, max_workers=max_workers)
+        
+        if current_spans.empty:
             return []
 
-        # 1. Latency Thresholds: P95 per operation
-        # "Span耗时异常：＞95分位数"
-        op_durations = all_spans.groupby('operationName')['duration']
-        # Compute P95 thresholds
-        op_thresholds = op_durations.quantile(0.95).to_dict()
+        # 3. 计算基线统计量 (计算历史每分钟的错误均值和标准差)
+        # 将基线按分钟切分，计算频率的波动
+        baseline_spans['minute'] = baseline_spans['start'].dt.floor('min')
+        baseline_min_stats = baseline_spans.groupby(['minute', 'operationName']).agg(
+            error_cnt=('is_error', 'sum'),
+            total_cnt=('spanID', 'count')
+        ).reset_index()
 
-        # Data structure to aggregate anomalies
-        # Key: (Source Service, Target Service, Anomaly Type)
+        # 计算每个接口的历史均值和标准差
+        history_metrics = baseline_min_stats.groupby('operationName')['error_cnt'].agg(['mean', 'std']).fillna(0).to_dict('index')
+
+        # 4. 获取当前窗口的异常
+        # 筛选条件：Error 或 Latency > P95 (这里的 P95 应该参考历史)
+        global_p95 = baseline_spans.groupby('operationName')['duration'].quantile(0.95).to_dict()
+        
         link_stats = defaultdict(lambda: {
             'count': 0,
-            'source_pods': defaultdict(int), # For Pod distribution check
+            'source_pods': defaultdict(int),
             'target_pods': defaultdict(int),
-            'messages': [], # For Levenshtein compression
+            'messages': [],
             'latency_vals': [],
-            'error_codes': set()
+            'error_codes': set(),
+            'burst_score': 0.0
         })
 
-        # We construct a simple graph lookup for parent-child to identify Source-Target
-        # Since 'process' info is on the span, we need to link child spans to parent spans to know "Source".
-        # However, jaeger spans have 'references' pointing to parent.
-        # Efficient approach: Index spans by SpanID, then iterate.
-        
-        # Filter potential anomalies first to reduce iteration size
-        # Condition 1: Error
-        cond_error = (all_spans['is_error'] == True) | (all_spans['http_code'] >= 400) | (all_spans['status_code'] != '0')
-        
-        # Condition 2: Latency > P95
-        # Need to map thresholds to rows
-        all_spans['threshold'] = all_spans['operationName'].map(op_thresholds).fillna(float('inf'))
-        cond_latency = all_spans['duration'] > all_spans['threshold']
+        span_index = current_spans.set_index('spanID')[['process', 'pod']].to_dict('index')
 
-        anomalous_spans = all_spans[cond_error | cond_latency].copy()
-        
-        if anomalous_spans.empty:
-            return []
-
-        # Build Span ID -> Service/Pod map for quick lookup
-        # We need this to find the "Source" (Parent) of an anomalous "Target" (Child)
-        # Optimized: We only need to look up parents for the anomalous spans.
-        # But parents might be healthy, so we need a global index.
-        # To save memory, we only index [spanID -> {service, pod}]
-        span_index = all_spans.set_index('spanID')[['process', 'pod']].to_dict('index')
-
-        for _, row in anomalous_spans.iterrows():
-            target_service = row['process'].get('serviceName', 'unknown')
-            target_pod = row.get('pod') or target_service
+        for _, row in current_spans.iterrows():
+            op = row['operationName']
+            is_err = row['is_error'] or row['http_code'] >= 400 or row['status_code'] != '0'
+            is_slow = row['duration'] > global_p95.get(op, float('inf'))
             
-            # Find Source (Parent)
-            source_service = "User/Gateway"
-            source_pod = "unknown"
+            if not (is_err or is_slow):
+                continue
+
+            # --- 时间维度 Z-score 降噪核心逻辑 ---
+            if is_err and op in history_metrics:
+                m = history_metrics[op]['mean']
+                s = history_metrics[op]['std']
+                # 计算当前错误是否为突发 (假设当前窗口是 1 分钟内的聚合)
+                # Z = (Current_Error - Mean) / Std
+                # 如果 Std 很小，设置一个最小 Std 保护
+                z = (1 - m) / max(s, 0.1) 
+                if z < 2.0 and m > 0.5: # 如果历史错误率就很高，且当前未显著突增，则过滤
+                    continue 
+
+            # --- 以下保留原有的空间维度统计和语义压缩 ---
+            dst_svc = row['process'].get('serviceName', 'unknown')
+            dst_pod = row.get('pod') or dst_svc
             
+            # 查找父节点获取源
+            src_svc, src_pod = "User", "unknown"
             refs = row.get('references')
             if isinstance(refs, np.ndarray) and len(refs) > 0:
-                for ref in refs:
-                    if ref.get('refType') == 'CHILD_OF':
-                        parent_id = ref.get('spanID')
-                        if parent_id in span_index:
-                            p_proc = span_index[parent_id]['process']
-                            source_service = p_proc.get('serviceName', 'unknown')
-                            source_pod = span_index[parent_id].get('pod') or source_service
-                        break
-            
-            # Categorize Anomaly
-            is_err = row['is_error'] or row['http_code'] >= 400 or row['status_code'] != '0'
-            is_slow = row['duration'] > row['threshold']
-            
-            # We treat (Source->Target) as a link.
-            link_key = (source_service, target_service)
-            stat = link_stats[link_key]
-            
+                parent_id = refs[0].get('spanID')
+                if parent_id in span_index:
+                    src_svc = span_index[parent_id]['process'].get('serviceName', 'unknown')
+                    src_pod = span_index[parent_id].get('pod') or src_svc
+
+            key = (src_svc, dst_svc)
+            stat = link_stats[key]
             stat['count'] += 1
-            stat['source_pods'][source_pod] += 1
-            stat['target_pods'][target_pod] += 1
+            stat['target_pods'][dst_pod] += 1
+            stat['source_pods'][src_pod] += 1
             
             if is_err:
                 stat['error_codes'].add(f"HTTP {row['http_code']}" if row['http_code'] else f"gRPC {row['status_code']}")
-                # Extract message for compression
                 msg = self._extract_error_message(row['logs'], row['tags'])
-                if msg:
-                    stat['messages'].append(msg)
-            
+                if msg: stat['messages'].append(msg)
             if is_slow:
                 stat['latency_vals'].append(row['duration'])
 
-        # Final Result Formatting
+        # 5. 格式化输出 (包含语义去重)
         results = []
         for (src, dst), data in link_stats.items():
-            # 3. Pod Distribution Anomaly
-            # "Pod分布比例异常：... 三倍标准差外"
-            anomalous_target_pods = self._detect_pod_distribution_anomaly(data['target_pods'])
-            anomalous_source_pods = self._detect_pod_distribution_anomaly(data['source_pods'])
-            
-            # 4. Semantic Deduplication
-            # "相似度大于95%被合并"
+            # 语义去重
             compressed_msgs = self._compress_messages(data['messages'], threshold=0.95)
             
-            span_obj = {
-                "source": src,
-                "source_pods": sorted(anomalous_source_pods), # Only report statistically significant pods
-                "target": dst,
-                "target_pods": sorted(anomalous_target_pods),
-                "count": data['count'],
-            }
-            
-            message_parts = {}
-            if data['error_codes']:
-                codes = sorted([c for c in data['error_codes'] if c not in ['HTTP 0', 'gRPC 0']])
-                if codes:
-                    message_parts["error_codes"] = codes
-            
-            if compressed_msgs:
-                message_parts["error_messages"] = compressed_msgs[:5] # Limit to top 5 templates
-
-            if data['latency_vals']:
-                latencies = np.array(data['latency_vals'])
-                message_parts["latency"] = {
-                    "avg_latency_ms": round(np.mean(latencies), 2),
-                    "max_latency_ms": round(np.max(latencies), 2),
-                    # Since threshold is P95 per op, we average the thresholds encountered? 
-                    # Simpler to just show what the typical P95 was. 
-                    # For simplicity, we omit exact threshold here or assume it's context dependent.
-                }
-
             results.append({
-                "span": span_obj,
-                "message": message_parts
+                "span": {
+                    "source": src,
+                    "target": dst,
+                    "target_pods": self._detect_pod_distribution_anomaly(data['target_pods']),
+                    "count": data['count']
+                },
+                "message": {
+                    "error_messages": compressed_msgs[:3],
+                    "latency": {"avg": np.mean(data['latency_vals'])} if data['latency_vals'] else {}
+                }
             })
-
         return results
     
 # The span tag can be classified as
