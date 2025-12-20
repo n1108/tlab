@@ -64,10 +64,8 @@ class TraceAgent:
     def load_spans(self, start: datetime, end: datetime, max_workers=4):
         def callback(spans: pd.DataFrame) -> pd.DataFrame:
             # 1. 向量化处理时间（Pandas 原生向量化已经很快，保留）
-            spans['start'] = pd.to_datetime(spans["startTimeMillis"], unit="ms")
-            spans['end'] = spans['start'] + pd.to_timedelta(spans['duration'], unit='ms')
-
-            # --- 优化核心：使用列表推导式代替 apply ---
+            spans['start'] = pd.to_datetime(spans["startTimeMillis"], unit="us")
+            spans['end'] = spans['start'] + pd.to_timedelta(spans['duration'], unit='us')
             
             # 2. 优化 process 字段解析
             # 将 Series 转为原生 List，避免 Pandas 每一行创建 Series 的开销
