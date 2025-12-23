@@ -64,7 +64,7 @@ class TraceAgent:
     def load_spans(self, start: datetime, end: datetime, max_workers=4):
         def callback(spans: pd.DataFrame) -> pd.DataFrame:
             # 1. 向量化处理时间（Pandas 原生向量化已经很快，保留）
-            spans['start'] = pd.to_datetime(spans["startTimeMillis"], unit="us")
+            spans['start'] = pd.to_datetime(spans["startTimeMillis"], unit="ms")
             spans['end'] = spans['start'] + pd.to_timedelta(spans['duration'], unit='us')
             
             # 2. 优化 process 字段解析
@@ -332,6 +332,12 @@ class TraceAgent:
         for (src, dst), data in link_stats.items():
             # 语义去重
             compressed_msgs = self._compress_messages(data['messages'], threshold=0.95)
+
+            avg_latency_ms = 0
+            if data['latency_vals']:
+                # 原始是 us，除以 1000 得到 ms
+                avg_latency_ms = round(float(np.mean(data['latency_vals'])) / 1000, 2)
+
             results.append({
                 "span": {
                     "source": src,
@@ -341,7 +347,8 @@ class TraceAgent:
                 },
                 "message": {
                     "error_messages": compressed_msgs[:3],
-                    "latency": {"avg": round(float(np.mean(data['latency_vals'])), 2)} if data['latency_vals'] else {}
+                    # 明确写出单位是 ms，防止 LLM 误解
+                    "latency": {"avg_ms": avg_latency_ms} if data['latency_vals'] else {}
                 }
             })
         return results
