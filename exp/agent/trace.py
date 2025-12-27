@@ -65,6 +65,24 @@ class TraceAgent:
         def callback(spans: pd.DataFrame) -> pd.DataFrame:
             # 1. 向量化处理时间
             spans['start'] = pd.to_datetime(spans["startTimeMillis"], unit="ms")
+            
+            # --- 【关键修复】在此处进行精确的时间过滤 ---
+            # 确保只保留 [start, end] 区间内的数据
+            # 注意：传入的 start/end 必须是 UTC 且无时区信息(naive) 或 与 pandas 转换后的时区一致
+            # 假设 dataset 中的 Parquet 读出来是 UTC
+            if spans.empty:
+                return spans
+            
+            # 统一转换为无时区时间进行比较，或者统一带时区
+            # 这里假设 pd.to_datetime 出来是 UTC，我们将输入的 start/end 也确保为 UTC
+            # 如果 start/end 带有 tzinfo，pandas 比较会自动处理，但为了保险：
+            mask = (spans['start'] >= start) & (spans['start'] <= end)
+            spans = spans[mask].copy()
+            
+            if spans.empty:
+                return spans
+            # ----------------------------------------
+
             spans['end'] = spans['start'] + pd.to_timedelta(spans['duration'], unit='us')
             
             # 2. 优化 process 字段解析
@@ -118,6 +136,16 @@ class TraceAgent:
             spans['is_error'] = is_errors
 
             return spans
+
+        return load_parquet_by_hour(
+            start, end, self.root_path,
+            file_pattern="{dataset}/{day}/trace-parquet/trace_jaeger-span_{day}_{hour}-00-00.parquet",
+            load_fields=self.fields,
+            return_fields=self.analysis_fields,
+            filter_=None,
+            callback=callback,
+            max_workers=max_workers
+        )
 
         return load_parquet_by_hour(
             start, end, self.root_path,
@@ -335,43 +363,3 @@ class TraceAgent:
                 }
             })
         return results
-    
-# The span tag can be classified as
-# [{'key': 'otel.library.name', 'type': 'string', 'value': 'OpenTelemetry.Instrumentation.StackExchangeRedis'}
-#  {'key': 'otel.library.version', 'type': 'string', 'value': '1.0.0.10'}
-#  {'key': 'db.system', 'type': 'string', 'value': 'redis'}
-#  {'key': 'db.redis.flags', 'type': 'string', 'value': 'DemandMaster'}
-#  {'key': 'db.statement', 'type': 'string', 'value': 'HMSET'}
-#  {'key': 'net.peer.name', 'type': 'string', 'value': 'redis-cart'}
-#  {'key': 'net.peer.port', 'type': 'int64', 'value': '6379'}
-#  {'key': 'db.redis.database_index', 'type': 'int64', 'value': '0'}
-#  {'key': 'peer.service', 'type': 'string', 'value': 'redis-cart:6379'}
-#  {'key': 'span.kind', 'type': 'string', 'value': 'client'}
-#  {'key': 'internal.span.format', 'type': 'string', 'value': 'otlp'}]
-
-# [{'key': 'otel.library.name', 'type': 'string', 'value': 'OpenTelemetry.Instrumentation.AspNetCore'}
-# {'key': 'otel.library.version', 'type': 'string', 'value': '1.0.0.0'}
-# {'key': 'server.address', 'type': 'string', 'value': 'cartservice'}
-# {'key': 'server.port', 'type': 'int64', 'value': '7070'}
-# {'key': 'http.request.method', 'type': 'string', 'value': 'POST'}
-# {'key': 'url.scheme', 'type': 'string', 'value': 'http'}
-# {'key': 'url.path', 'type': 'string', 'value': '/hipstershop.CartService/GetCart'}
-# {'key': 'network.protocol.version', 'type': 'string', 'value': '2'}
-# {'key': 'user_agent.original', 'type': 'string', 'value': 'grpc-go/1.31.0'}
-# {'key': 'grpc.method', 'type': 'string', 'value': '/hipstershop.CartService/GetCart'}
-# {'key': 'grpc.status_code', 'type': 'string', 'value': '0'}
-# {'key': 'http.route', 'type': 'string', 'value': '/hipstershop.CartService/GetCart'}
-# {'key': 'http.response.status_code', 'type': 'int64', 'value': '200'}
-# {'key': 'span.kind', 'type': 'string', 'value': 'server'}
-# {'key': 'internal.span.format', 'type': 'string', 'value': 'otlp'}]
-
-# [{'key': 'rpc.system', 'type': 'string', 'value': 'grpc'}
-# {'key': 'rpc.service', 'type': 'string', 'value': 'hipstershop.RecommendationService'}
-# {'key': 'rpc.method', 'type': 'string', 'value': 'ListRecommendations'}
-# {'key': 'net.peer.ip', 'type': 'string', 'value': 'recommendationservice'}
-# {'key': 'net.peer.port', 'type': 'string', 'value': '8080'}
-# {'key': 'instrumentation.name', 'type': 'string', 'value': 'go.opentelemetry.io/otel/sdk/tracer'}
-# {'key': 'status.code', 'type': 'int64', 'value': '0'}
-# {'key': 'status.message', 'type': 'string', 'value': ''}
-# {'key': 'span.kind', 'type': 'string', 'value': 'client'}
-# {'key': 'internal.span.format', 'type': 'string', 'value': 'jaeger'}]
