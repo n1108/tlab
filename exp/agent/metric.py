@@ -16,7 +16,7 @@ from tslearn.clustering import TimeSeriesKMeans
 from tslearn.utils import to_time_series_dataset
 import logging
 
-# Import the enhanced analyzer
+# 引入增强分析器
 try:
     from .enhanced_metric_analyzer import MetricAnalyzer
 except ImportError:
@@ -191,45 +191,58 @@ class MetricAgent:
         results = []
         filter = (ds.field("time") >= start) & (ds.field("time") <= end)
         with ThreadPoolExecutor(max_workers=max_workers) as pool:
-            futures = {pool.submit(load_parquet, Path(f), filter=filter): f for f in files}
+            # 修复：正确使用与 utils/input.py 定义匹配的 filter_ 参数
+            futures = {pool.submit(load_parquet, Path(f), filter_=filter): f for f in files}
             for future in as_completed(futures):
                 df = future.result()
                 if not df.empty:
                     metric_candidates = list(set(df.columns) - set(self.infra_schema_fields))
                     if len(metric_candidates) == 1:
                         df["value"] = df[metric_candidates[0]]
-                        df["pod"] = df["pod"].astype(str).str.replace(r"-\d+$", "", regex=True)
+                        df["pod"] = df["pod"].astype(str)
+                        # 修复：不要去掉 Pod 后缀，以保留 Pod 级别的粒度，便于定位特定副本异常
+                        # df["pod"] = df["pod"].astype(str).str.replace(r"-\d+$", "", regex=True)
                         results.append(df[self.infra_fields])
 
         return pd.concat(results, ignore_index=True) if results else pd.DataFrame()
 
     def score(self, start_time: datetime, end_time: datetime) -> List:
         scores = []
-        apm = self.load_apm(start_time, end_time)
-        if apm.empty:
-            return scores
         
-        for service, group in apm.groupby("object_id"):
-            if group.empty:
-                continue
-            s = 0.0
+        # 1. 分析 APM 指标 (服务级别)
+        apm = self.load_apm(start_time, end_time)
+        if not apm.empty:
+            for service, group in apm.groupby("object_id"):
+                if group.empty:
+                    continue
+                
+                if group['error_ratio'].mean() > self.error_threshold:
+                    scores.append({
+                        'service': service,
+                        'kpi': 'error_ratio',
+                        'reason': f"Error ratio {group['error_ratio'].mean():.2f} exceeds threshold {self.error_threshold:.2f}",\
+                    })
+                if group['timeout'].mean() > self.timeout_threshold:
+                    scores.append({
+                        'service': service,
+                        'kpi': 'timeout',
+                        'reason': f"Timeout {group['timeout'].mean():.2f} exceeds threshold {self.timeout_threshold:.2f}",
+                    })
+        
+        # 2. 分析基础设施和组件指标 (Pod/Node 级别)
+        # 调用 query_metrics 检测 CPU/内存/TiDB 异常
+        infra_result = self.query_metrics(start_time, end_time)
+        
+        # 如果在基础设施中发现显著异常，将其添加到 scores 中
+        # main.py 使用此处返回的列表来告知 JudgeAgent
+        if infra_result and infra_result.get("observation") != "No significant metric anomalies detected.":
+            scores.append({
+                'service': 'Infrastructure/Components',
+                'kpi': 'various',
+                'reason': infra_result["observation"],
+                'details': infra_result.get("events", [])
+            })
 
-            if group['error_ratio'].mean() > self.error_threshold:
-                delta = group['error_ratio'].mean() - self.error_threshold
-                s += delta * self.weights.get("error_ratio", 1.0)
-                scores.append({
-                    'service': service,
-                    'kpi': 'error_ratio',
-                    'reason': f"Error ratio {group['error_ratio'].mean():.2f} exceeds threshold {self.error_threshold:.2f}",\
-                })
-            if group['timeout'].mean() > self.timeout_threshold:
-                delta = group['timeout'].mean() - self.timeout_threshold
-                s += delta * self.weights.get("timeout", 1.0)
-                scores.append({
-                    'service': service,
-                    'kpi': 'timeout',
-                    'reason': f"Timeout {group['timeout'].mean():.2f} exceeds threshold {self.timeout_threshold:.2f}",
-                })
         return scores
 
     def query_metrics(self, start_time: datetime, end_time: datetime):
@@ -241,6 +254,13 @@ class MetricAgent:
         anomalies = []
         details = {}
         events = []
+
+        if infra_and_other.empty:
+             return {
+                "observation": "No significant metric anomalies detected.",
+                "details": {},
+                "events": []
+            }
 
         for pod, pod_group in infra_and_other.groupby("pod"):
             for kpi, group in pod_group.groupby("kpi_key"):
@@ -288,7 +308,8 @@ class MetricAgent:
         if abnormal_times:
             events.append({"type": "joint_anomaly", "top_kpis": top_kpis, "timestamps": [str(t) for t in abnormal_times]})
             for kpi in top_kpis:
-                anomalies.append((pod, kpi))
+                # 标记为系统级或特定 Pod（如果可识别），此处暂标记 KPI 为通用
+                anomalies.append(("system", kpi))
                 details.setdefault(kpi, {}).update({"joint_anomaly_times": abnormal_times})
 
         summary = {}
