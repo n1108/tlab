@@ -210,7 +210,6 @@ class TraceAgent:
             return []
 
         # 3. 计算基线统计量
-        # 修复：基线计算也需要包含所有类型的错误，不仅仅是 error tag
         history_metrics = {}
         if not baseline_spans.empty:
             # 计算综合错误标志
@@ -235,7 +234,7 @@ class TraceAgent:
         duration_minutes = (end_time - start_time).total_seconds() / 60.0
         if duration_minutes <= 0: duration_minutes = 1.0
 
-        # 修复：使用综合错误条件来统计当前错误数
+        # 使用综合错误条件来统计当前错误数
         is_failed_mask = (
             current_spans['is_error'] | 
             (current_spans['http_code'] >= 400) | 
@@ -264,27 +263,25 @@ class TraceAgent:
                 anomalous_error_ops.add(op)
 
         # 5. 遍历 Span 进行聚合
-        link_stats = defaultdict(lambda: {
+        # 修改聚合逻辑：按 (Source, Target) 分组，内部再按 (Pod, Node) 聚合
+        # link_stats structure:
+        # { (src_svc, dst_svc): { (dst_pod, dst_node): { count, latency_vals, messages } } }
+        link_stats = defaultdict(lambda: defaultdict(lambda: {
             'count': 0,
-            'source_pods': defaultdict(int),
-            'target_pods': defaultdict(int),
             'messages': [],
             'latency_vals': [],
             'error_codes': set()
-        })
+        }))
 
-        # 建立索引加速父子查找
-        span_index = current_spans.set_index('spanID')[['process', 'pod']].to_dict('index')
+        # 建立索引加速父子查找，加入 node 信息
+        span_index = current_spans.set_index('spanID')[['process', 'pod', 'node']].to_dict('index')
 
         for idx, row in current_spans.iterrows():
             op = row['operationName']
             
-            # 使用与上方一致的错误判定逻辑
-            # 注意：row 是 Series，访问列名
+            # 错误判定逻辑保持不变
             raw_is_err = row['is_error'] or row['http_code'] >= 400 or (row['status_code'] != '0' and row['status_code'] != 0)
             is_slow = row['duration'] > global_p95.get(op, float('inf'))
-            
-            # 只有在白名单里的 op 才被认为是真正的 Error（降噪）
             is_valid_err = raw_is_err and (op in anomalous_error_ops)
 
             if not (is_valid_err or is_slow):
@@ -292,20 +289,19 @@ class TraceAgent:
 
             dst_svc = row['process'].get('serviceName', 'unknown')
             dst_pod = row.get('pod') or dst_svc
+            # 获取目标 Node
+            dst_node = row.get('node') or 'unknown'
             
-            src_svc, src_pod = "User", "unknown"
+            src_svc = "User"
             refs = row.get('references')
             if isinstance(refs, np.ndarray) and len(refs) > 0:
                 parent_id = refs[0].get('spanID')
                 if parent_id in span_index:
                     src_svc = span_index[parent_id]['process'].get('serviceName', 'unknown')
-                    src_pod = span_index[parent_id].get('pod') or src_svc
 
-            key = (src_svc, dst_svc)
-            stat = link_stats[key]
+            # 聚合到 Pod + Node 粒度
+            stat = link_stats[(src_svc, dst_svc)][(dst_pod, dst_node)]
             stat['count'] += 1
-            stat['target_pods'][dst_pod] += 1
-            stat['source_pods'][src_pod] += 1
             
             if is_valid_err:
                 if row['http_code']:
@@ -319,31 +315,45 @@ class TraceAgent:
                 msg = self._extract_error_message(row['logs'], row['tags'])
                 if msg: stat['messages'].append(msg)
             
-            if is_slow:
-                stat['latency_vals'].append(row['duration'])
+            # 记录所有异常或慢请求的延迟
+            stat['latency_vals'].append(row['duration'])
 
         # 6. 格式化输出
         results = []
-        for (src, dst), data in link_stats.items():
-            compressed_msgs = self._compress_messages(data['messages'], threshold=0.95)
+        for (src, dst), pod_groups in link_stats.items():
+            
+            pod_details = []
+            
+            for (pod, node), data in pod_groups.items():
+                compressed_msgs = self._compress_messages(data['messages'], threshold=0.95)
+                
+                avg_latency_ms = 0
+                if data['latency_vals']:
+                    avg_latency_ms = round(float(np.mean(data['latency_vals'])) / 1000, 2)
 
-            avg_latency_ms = 0
-            if data['latency_vals']:
-                avg_latency_ms = round(float(np.mean(data['latency_vals'])) / 1000, 2)
+                if not compressed_msgs and avg_latency_ms == 0:
+                    continue
+                
+                pod_details.append({
+                    "pod": pod,
+                    "node": node,
+                    "count": data['count'],
+                    "avg_latency_ms": avg_latency_ms,
+                    "error_messages": compressed_msgs[:2] # 限制每Pod的错误消息数
+                })
 
-            if not compressed_msgs and avg_latency_ms == 0:
+            if not pod_details:
                 continue
+
+            # 按延迟排序，突出问题最严重的 Pod/Node
+            pod_details.sort(key=lambda x: x['avg_latency_ms'], reverse=True)
 
             results.append({
                 "span": {
                     "source": src,
-                    "target": dst,
-                    "target_pods": self._detect_pod_distribution_anomaly(data['target_pods']),
-                    "count": data['count']
+                    "target": dst
                 },
-                "message": {
-                    "error_messages": compressed_msgs[:3],
-                    "latency": {"avg_ms": avg_latency_ms} if data['latency_vals'] else {}
-                }
+                "details": pod_details[:5] # 限制每个 Link 显示 Top 5 问题 Pod
             })
+            
         return results

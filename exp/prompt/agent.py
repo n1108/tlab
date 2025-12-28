@@ -6,7 +6,7 @@ What you SHOULD do:
     1.1. Preprocess:
         - Aggregate each KPI of each components that are possible to be the root cause component to obtain multiple time series classified by 'component-KPI' (e.g., service_A-cpu_usage_pct).
         - Then, calculate global thresholds (e.g., global P95, where 'global' means the threshold of all 'component-KPI' time series within a whole metric file) for each 'component-KPI' time series. - Finally, filter data within the given time duration for all time series to perform further analysis.
-        - Since the root cause component must be selected from the provided possible root cause components, all other level's components (e.g., service mesh components, middleware components, etc.) should be ignored.
+        - The root cause can be at the **Service**, **Pod**, or **Node** level. 
     1.2. Anomaly detection: 
         - An anomaly is typically a data point that exceeds the global threshold.
         - Look for anomalies below a certain threshold (e.g., <=P95, <=P15, or <=P5) in traffic KPIs or business KPIs (e.g., success rate (ss)) since some network failures can cause a sudden drop on them due to packet loss.

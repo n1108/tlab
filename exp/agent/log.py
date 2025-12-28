@@ -97,22 +97,30 @@ class LogAgent:
 
         miner = TemplateMiner(None, self.config)
 
-        # 2. 统计基线 (修改：使用 k8_pod 作为 key，而不是 svc)
+        # 2. 统计基线
         baseline_stats = defaultdict(lambda: defaultdict(int))
         if not baseline_df.empty:
             for _, row in baseline_df.iterrows():
-                # [修改点 1] 直接使用 Pod 名称，不再转换为 Service
                 pod_name = row['k8_pod'] if row['k8_pod'] else "unknown"
                 res = miner.add_log_message(row['cleaned_message'])
                 baseline_stats[pod_name][res["cluster_id"]] += 1
 
-        # 3. 统计当前 (修改：使用 k8_pod 作为 key)
+        # 3. 统计当前 & 记录拓扑信息 (Pod -> Node, Service)
         current_stats = defaultdict(lambda: defaultdict(lambda: {'count': 0, 'template': '', 'sample': ''}))
+        pod_info = {} # 存储 Pod 的元数据
+
         if not current_df.empty:
             for _, row in current_df.iterrows():
-                # [修改点 2] 直接使用 Pod 名称
                 pod_name = row['k8_pod'] if row['k8_pod'] else "unknown"
                 
+                # 记录 Pod 对应的 Node 和 Service 信息
+                if pod_name not in pod_info:
+                    node_name = row.get('k8_node_name')
+                    pod_info[pod_name] = {
+                        'node': node_name if node_name else "unknown",
+                        'service': self._get_service_name(pod_name)
+                    }
+
                 content = row['cleaned_message']
                 res = miner.add_log_message(content)
                 t_id = res["cluster_id"]
@@ -125,20 +133,18 @@ class LogAgent:
 
         anomalies = []
         
-        # 4. 检测异常：遍历的是 Pod (此前是 svc)
+        # 4. 检测异常
         for pod_name, templates in current_stats.items():
             pod_anomalies = []
             total_logs = 0
             
             for t_id, info in templates.items():
                 curr_cnt = info['count']
-                # [修改点 3] 对比该 Pod 自己的基线
                 base_cnt = baseline_stats[pod_name].get(t_id, 0)
                 total_logs += curr_cnt
                 
                 anomaly_type = None
                 
-                # 异常判定逻辑保持不变，但现在是针对单个 Pod 的历史对比
                 if base_cnt == 0:
                     anomaly_type = "New Pattern"
                 elif curr_cnt > base_cnt * 3 and curr_cnt > 5:
@@ -155,27 +161,35 @@ class LogAgent:
                         "sample": info['sample']
                     })
             
-            # 排序优先级
             type_priority = {"New Pattern": 3, "Frequency Surge": 2, "Persistent Error": 1}
             pod_anomalies.sort(key=lambda x: (type_priority[x['type']], x['current_count']), reverse=True)
             
             if pod_anomalies:
                 top_pattern = pod_anomalies[0]
+                info = pod_info.get(pod_name, {})
+                service_name = info.get('service', 'unknown')
+                node_name = info.get('node', 'unknown')
+
                 anomalies.append({
-                    "component": pod_name,  # [关键修改] 这里现在输出的是 Pod 名称 (如 cartservice-2)
+                    "component": pod_name,
+                    "service": service_name, # 增加 Service 字段
+                    "node": node_name,       # 增加 Node 字段
                     "total_error_count": total_logs,
                     "anomalous_patterns": pod_anomalies[:5],
-                    "observation": f"{pod_name}: Detected {len(pod_anomalies)} anomalies. Top: [{top_pattern['type']}] {top_pattern['template']} (Count: {top_pattern['current_count']})"
+                    # 在 observation 中显式包含 Service 和 Node 信息，帮助 LLM 推理
+                    "observation": f"{pod_name} (Service: {service_name}, Node: {node_name}): Detected {len(pod_anomalies)} anomalies. Top: [{top_pattern['type']}] {top_pattern['template']} (Count: {top_pattern['current_count']})"
                 })
 
         # 5. 检测突降 (Pod Drop)
-        # 这里的含义变成了：某个 Pod 之前有日志，现在完全没日志了（可能是 Pod 挂了或者日志挂了）
         for pod_name, base_templates in baseline_stats.items():
             if pod_name not in current_stats:
                 total_base = sum(base_templates.values())
                 if total_base > 10:
+                    # 尝试从基线数据中恢复该 Pod 的 Service/Node 似乎没有必要，因为 Pod 可能已经不存在了
+                    # 这里的 observation 提示 LLM Pod 可能挂了
                     anomalies.append({
                         "component": pod_name,
+                        "service": self._get_service_name(pod_name),
                         "observation": f"{pod_name}: Error logs disappeared completely (Frequency Drop). Pod might be down or recreated."
                     })
 
@@ -185,8 +199,23 @@ class LogAgent:
         if not pod_name:
             return "unknown"
         parts = pod_name.split("-")
-        if len(parts) > 2 and (parts[-1].isdigit() or len(parts[-1]) > 4):
-             return "-".join(parts[:-2])
-        if len(parts) > 1 and (parts[-1].isdigit() or len(parts[-1]) > 4):
+        
+        # Case 1: StatefulSet (以数字结尾) e.g., adservice-0, tidb-tikv-0
+        if parts[-1].isdigit():
             return "-".join(parts[:-1])
+            
+        # Case 2: Deployment (e.g., emailservice-5c67-xyz)
+        # Check if it has enough parts to be name-hash-hash
+        if len(parts) > 2:
+            # Check for name-replicaset-podhash pattern
+            # Replicaset hash is usually alphanumeric, pod hash alphanumeric. Length > 4 is a heuristic.
+            if len(parts[-1]) >= 4:
+                # If second to last also looks like hash or is numeric
+                if len(parts[-2]) >= 4 or parts[-2].isdigit():
+                    return "-".join(parts[:-2])
+        
+        # Case 3: Simple Pod or name-hash
+        if len(parts) > 1 and len(parts[-1]) >= 4:
+            return "-".join(parts[:-1])
+            
         return pod_name
