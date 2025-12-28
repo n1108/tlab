@@ -66,22 +66,15 @@ class TraceAgent:
             # 1. 向量化处理时间
             spans['start'] = pd.to_datetime(spans["startTimeMillis"], unit="ms")
             
-            # --- 【关键修复】在此处进行精确的时间过滤 ---
-            # 确保只保留 [start, end] 区间内的数据
-            # 注意：传入的 start/end 必须是 UTC 且无时区信息(naive) 或 与 pandas 转换后的时区一致
-            # 假设 dataset 中的 Parquet 读出来是 UTC
+            # 精确时间过滤
             if spans.empty:
                 return spans
             
-            # 统一转换为无时区时间进行比较，或者统一带时区
-            # 这里假设 pd.to_datetime 出来是 UTC，我们将输入的 start/end 也确保为 UTC
-            # 如果 start/end 带有 tzinfo，pandas 比较会自动处理，但为了保险：
             mask = (spans['start'] >= start) & (spans['start'] <= end)
             spans = spans[mask].copy()
             
             if spans.empty:
                 return spans
-            # ----------------------------------------
 
             spans['end'] = spans['start'] + pd.to_timedelta(spans['duration'], unit='us')
             
@@ -136,16 +129,6 @@ class TraceAgent:
             spans['is_error'] = is_errors
 
             return spans
-
-        return load_parquet_by_hour(
-            start, end, self.root_path,
-            file_pattern="{dataset}/{day}/trace-parquet/trace_jaeger-span_{day}_{hour}-00-00.parquet",
-            load_fields=self.fields,
-            return_fields=self.analysis_fields,
-            filter_=None,
-            callback=callback,
-            max_workers=max_workers
-        )
 
         return load_parquet_by_hour(
             start, end, self.root_path,
@@ -214,14 +197,7 @@ class TraceAgent:
         return anomalous_pods if anomalous_pods else pods
 
     def score(self, start_time: datetime, end_time: datetime, max_workers=4) -> List[Dict]:
-        """
-        修复版 Z-Score 降噪逻辑：
-        1. 计算当前时间窗口的总时长和各接口错误总量。
-        2. 将当前的错误频率与历史基线（按分钟聚合）进行对比。
-        3. 仅保留 Z-Score 显著或绝对数量激增的接口作为“异常接口”。
-        4. 遍历 Span 时，仅当接口在“异常接口”名单中，才视为 Error Span；否则视为背景噪声忽略（Slow Span 独立判断）。
-        """
-        # 1. 加载历史基准数据 (异常前 30 分钟)
+        # 1. 加载历史基准数据
         baseline_start = start_time - timedelta(minutes=30)
         logger.info(f"Loading baseline from {baseline_start} to {start_time}")
         baseline_spans = self.load_spans(baseline_start, start_time, max_workers=max_workers)
@@ -233,14 +209,20 @@ class TraceAgent:
         if current_spans.empty:
             return []
 
-        # 3. 计算基线统计量 (计算历史每分钟的错误均值和标准差)
+        # 3. 计算基线统计量
+        # 修复：基线计算也需要包含所有类型的错误，不仅仅是 error tag
         history_metrics = {}
         if not baseline_spans.empty:
+            # 计算综合错误标志
+            baseline_spans['combined_error'] = (
+                baseline_spans['is_error'] | 
+                (baseline_spans['http_code'] >= 400) | 
+                ((baseline_spans['status_code'] != '0') & (baseline_spans['status_code'] != 0))
+            )
             baseline_spans['minute'] = baseline_spans['start'].dt.floor('min')
             baseline_min_stats = baseline_spans.groupby(['minute', 'operationName']).agg(
-                error_cnt=('is_error', 'sum')
+                error_cnt=('combined_error', 'sum')
             ).reset_index()
-            # 补全那些虽然在 baseline_spans 里但某些分钟没有错误的记录为0（可选，这里简化处理，直接聚合）
             history_metrics = baseline_min_stats.groupby('operationName')['error_cnt'].agg(['mean', 'std']).fillna(0).to_dict('index')
 
         # 计算 P95 延迟阈值
@@ -249,20 +231,24 @@ class TraceAgent:
         else:
             global_p95 = current_spans.groupby('operationName')['duration'].quantile(0.95).to_dict()
 
-        # 4. 预计算当前窗口的统计特征 (Z-Score 对比的核心)
+        # 4. 预计算当前窗口的统计特征
         duration_minutes = (end_time - start_time).total_seconds() / 60.0
         if duration_minutes <= 0: duration_minutes = 1.0
 
-        current_error_counts = current_spans[current_spans['is_error']].groupby('operationName').size().to_dict()
+        # 修复：使用综合错误条件来统计当前错误数
+        is_failed_mask = (
+            current_spans['is_error'] | 
+            (current_spans['http_code'] >= 400) | 
+            ((current_spans['status_code'] != '0') & (current_spans['status_code'] != 0))
+        )
+        current_error_counts = current_spans[is_failed_mask].groupby('operationName').size().to_dict()
         
-        # 确定哪些 Operation 的错误是显著的 (白名单)
         anomalous_error_ops = set()
         
         for op, count in current_error_counts.items():
-            current_rate = count / duration_minutes  # 当前每分钟错误数
+            current_rate = count / duration_minutes
             
             if op not in history_metrics:
-                # 新出现的错误，直接视为异常
                 anomalous_error_ops.add(op)
                 continue
             
@@ -270,21 +256,14 @@ class TraceAgent:
             h_mean = stats['mean']
             h_std = stats['std']
             
-            # 避免除以 0
             safe_std = max(h_std, 0.1) 
-            
-            # 计算 Z-Score: (当前频率 - 历史均值) / 历史波动
             z = (current_rate - h_mean) / safe_std
             
-            # 判定标准：
-            # 1. Z-Score > 3.0 (统计显著突增)
-            # 2. 或者绝对数量很大且超过均值 (应对 std 很大导致 z 分数不高的情况)
+            # Z-Score > 3.0 或 绝对数量显著 (例如 > 5 且超过均值1.5倍)
             if z > 3.0 or (count > 5 and current_rate > h_mean * 1.5):
                 anomalous_error_ops.add(op)
-            else:
-                logger.debug(f"Filtering noise error for {op}: count={count}, mean={h_mean:.2f}, z={z:.2f}")
 
-        # 5. 遍历 Span 进行聚合 (带降噪)
+        # 5. 遍历 Span 进行聚合
         link_stats = defaultdict(lambda: {
             'count': 0,
             'source_pods': defaultdict(int),
@@ -294,23 +273,23 @@ class TraceAgent:
             'error_codes': set()
         })
 
+        # 建立索引加速父子查找
         span_index = current_spans.set_index('spanID')[['process', 'pod']].to_dict('index')
 
-        for _, row in current_spans.iterrows():
+        for idx, row in current_spans.iterrows():
             op = row['operationName']
             
-            # 原始标记
+            # 使用与上方一致的错误判定逻辑
+            # 注意：row 是 Series，访问列名
             raw_is_err = row['is_error'] or row['http_code'] >= 400 or (row['status_code'] != '0' and row['status_code'] != 0)
             is_slow = row['duration'] > global_p95.get(op, float('inf'))
             
-            # 降噪逻辑：只有在白名单里的 op 才被认为是真正的 Error
-            # 注意：如果它是慢调用，依然保留慢调用的特征，只是不计入 Error Message
+            # 只有在白名单里的 op 才被认为是真正的 Error（降噪）
             is_valid_err = raw_is_err and (op in anomalous_error_ops)
 
             if not (is_valid_err or is_slow):
                 continue
 
-            # 获取拓扑信息
             dst_svc = row['process'].get('serviceName', 'unknown')
             dst_pod = row.get('pod') or dst_svc
             
@@ -329,7 +308,13 @@ class TraceAgent:
             stat['source_pods'][src_pod] += 1
             
             if is_valid_err:
-                code_str = f"HTTP {row['http_code']}" if row['http_code'] else f"gRPC {row['status_code']}"
+                if row['http_code']:
+                    code_str = f"HTTP {row['http_code']}"
+                elif row['status_code'] != '0' and row['status_code'] != 0:
+                    code_str = f"gRPC {row['status_code']}"
+                else:
+                    code_str = "Error Tag"
+                    
                 stat['error_codes'].add(code_str)
                 msg = self._extract_error_message(row['logs'], row['tags'])
                 if msg: stat['messages'].append(msg)
@@ -346,7 +331,6 @@ class TraceAgent:
             if data['latency_vals']:
                 avg_latency_ms = round(float(np.mean(data['latency_vals'])) / 1000, 2)
 
-            # 如果既没有有效错误，也没有延迟数据（理论上不会发生），则跳过
             if not compressed_msgs and avg_latency_ms == 0:
                 continue
 
