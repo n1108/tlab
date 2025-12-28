@@ -6,6 +6,9 @@ import re
 import json
 from typing import Dict, Any
 
+# [FIX 1] 导入专家规则库
+from exp.prompt.agent import rules
+
 logger = logging.getLogger(__name__)
 
 format = """{
@@ -55,29 +58,36 @@ class JudgeAgent:
         Returns a structured result with fields: uuid, component, reason, reasoning_trace.
         """
         print(f"JudgeAgent: Analyzing anomaly {uuid} with description: {description}")
+        
         # Construct the payload for LLM
+        # 使用更清晰的换行符 \n 替代 \\n，方便 LLM 理解结构
         prompt = (
-            f"Description: {description}\\n"
-            f"Metric Observation: {metric_obs}\\n"
-            f"Trace Observation: {trace_obs}\\n"
-            f"Log Observation: {log_obs}\\n"
-            "Based on the above, identify the root cause of the anomaly. "
-            "Output a JSON with keys: component, reason, reasoning_trace. "
+            f"Description: {description}\n"
+            f"Metric Observation: {metric_obs}\n"
+            f"Trace Observation: {trace_obs}\n"
+            f"Log Observation: {log_obs}\n"
+            "Based on the above observations and the failure diagnosis rules, identify the root cause of the anomaly.\n"
+            "Output a JSON with keys: component, reason, reasoning_trace.\n"
             "The reasoning_trace should list steps: "
             "(1) QueryMetrics, (2) TraceCheck, (3) LogInspection, "
-            "each with the corresponding observation."
+            "each with the corresponding observation.\n"
             "Please respond **only** with a JSON object, without markdown formatting or extra commentary."
         )
         print(f"JudgeAgent: Sending prompt to LLM: {prompt}")
+        
         client = OpenAI(api_key=self.api_key, base_url=self.api_url)
+        
+        # [FIX 2] 将 rules 注入到 System Prompt 中
+        # 这对于让 LLM 忽略 Metric 噪音（如 PD 异常）并关注 Trace 下游故障至关重要
+        system_content = f"You are a root cause analysis expert for distributed systems.\n\n{rules}"
+
         response = client.chat.completions.create(
             model="deepseek-chat",
             # model="deepseek-r1:671b-0528",
             # model="deepseek-r1:32b",
             messages=[
-                {"role": "system", "content": "You are a root cause analysis expert for distributed systems"},
+                {"role": "system", "content": system_content},
                 {"role": "user", "content": prompt}
-
             ],
             response_format={"type": "json_object"},  # 强制JSON输出
             stream=False,
@@ -85,6 +95,8 @@ class JudgeAgent:
             top_p=0.95,             # 多样性控制
             parallel_tool_calls=True,  # 并行调用工具
         )
+        
+        # 处理返回结果
         logger.info(response.choices[0].message.model_dump_json(exclude_none=True, exclude_unset=True))
         response = json.loads(json.loads(response.choices[0].message.model_dump_json(exclude_none=True, exclude_unset=True))['content'])
         logger.info(f"JudgeAgent: LLM response: {response}")
