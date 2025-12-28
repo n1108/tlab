@@ -97,23 +97,27 @@ class LogAgent:
 
         miner = TemplateMiner(None, self.config)
 
-        # 2. 统计基线
+        # 2. 统计基线 (修改：使用 k8_pod 作为 key，而不是 svc)
         baseline_stats = defaultdict(lambda: defaultdict(int))
         if not baseline_df.empty:
             for _, row in baseline_df.iterrows():
-                svc = self._get_service_name(row['k8_pod'])
+                # [修改点 1] 直接使用 Pod 名称，不再转换为 Service
+                pod_name = row['k8_pod'] if row['k8_pod'] else "unknown"
                 res = miner.add_log_message(row['cleaned_message'])
-                baseline_stats[svc][res["cluster_id"]] += 1
+                baseline_stats[pod_name][res["cluster_id"]] += 1
 
-        # 3. 统计当前
+        # 3. 统计当前 (修改：使用 k8_pod 作为 key)
         current_stats = defaultdict(lambda: defaultdict(lambda: {'count': 0, 'template': '', 'sample': ''}))
         if not current_df.empty:
             for _, row in current_df.iterrows():
-                svc = self._get_service_name(row['k8_pod'])
+                # [修改点 2] 直接使用 Pod 名称
+                pod_name = row['k8_pod'] if row['k8_pod'] else "unknown"
+                
                 content = row['cleaned_message']
                 res = miner.add_log_message(content)
                 t_id = res["cluster_id"]
-                entry = current_stats[svc][t_id]
+                
+                entry = current_stats[pod_name][t_id]
                 entry['count'] += 1
                 entry['template'] = res["template_mined"]
                 if entry['count'] == 1:
@@ -121,29 +125,29 @@ class LogAgent:
 
         anomalies = []
         
-        # 4. 检测异常：新增(New)、突增(Surge)、持续(Persistent)
-        for svc, templates in current_stats.items():
-            svc_anomalies = []
+        # 4. 检测异常：遍历的是 Pod (此前是 svc)
+        for pod_name, templates in current_stats.items():
+            pod_anomalies = []
             total_logs = 0
             
             for t_id, info in templates.items():
                 curr_cnt = info['count']
-                base_cnt = baseline_stats[svc].get(t_id, 0)
+                # [修改点 3] 对比该 Pod 自己的基线
+                base_cnt = baseline_stats[pod_name].get(t_id, 0)
                 total_logs += curr_cnt
                 
                 anomaly_type = None
                 
+                # 异常判定逻辑保持不变，但现在是针对单个 Pod 的历史对比
                 if base_cnt == 0:
                     anomaly_type = "New Pattern"
                 elif curr_cnt > base_cnt * 3 and curr_cnt > 5:
                     anomaly_type = "Frequency Surge"
                 elif curr_cnt > 10: 
-                    # 新增：虽然没有突增，但绝对数量较高，属于持续报错
-                    # 避免漏掉已经开始一段时间的故障
                     anomaly_type = "Persistent Error"
                 
                 if anomaly_type:
-                    svc_anomalies.append({
+                    pod_anomalies.append({
                         "type": anomaly_type,
                         "template": info['template'],
                         "current_count": curr_cnt,
@@ -151,27 +155,28 @@ class LogAgent:
                         "sample": info['sample']
                     })
             
-            # 排序优先级：New > Surge > Persistent
+            # 排序优先级
             type_priority = {"New Pattern": 3, "Frequency Surge": 2, "Persistent Error": 1}
-            svc_anomalies.sort(key=lambda x: (type_priority[x['type']], x['current_count']), reverse=True)
+            pod_anomalies.sort(key=lambda x: (type_priority[x['type']], x['current_count']), reverse=True)
             
-            if svc_anomalies:
-                top_pattern = svc_anomalies[0]
+            if pod_anomalies:
+                top_pattern = pod_anomalies[0]
                 anomalies.append({
-                    "component": svc,
+                    "component": pod_name,  # [关键修改] 这里现在输出的是 Pod 名称 (如 cartservice-2)
                     "total_error_count": total_logs,
-                    "anomalous_patterns": svc_anomalies[:5],
-                    "observation": f"{svc}: Detected {len(svc_anomalies)} anomalies. Top: [{top_pattern['type']}] {top_pattern['template']} (Count: {top_pattern['current_count']})"
+                    "anomalous_patterns": pod_anomalies[:5],
+                    "observation": f"{pod_name}: Detected {len(pod_anomalies)} anomalies. Top: [{top_pattern['type']}] {top_pattern['template']} (Count: {top_pattern['current_count']})"
                 })
 
-        # 5. 检测突降 (Service Drop)
-        for svc, base_templates in baseline_stats.items():
-            if svc not in current_stats:
+        # 5. 检测突降 (Pod Drop)
+        # 这里的含义变成了：某个 Pod 之前有日志，现在完全没日志了（可能是 Pod 挂了或者日志挂了）
+        for pod_name, base_templates in baseline_stats.items():
+            if pod_name not in current_stats:
                 total_base = sum(base_templates.values())
                 if total_base > 10:
                     anomalies.append({
-                        "component": svc,
-                        "observation": f"{svc}: Error logs disappeared completely (Frequency Drop). Service might be down."
+                        "component": pod_name,
+                        "observation": f"{pod_name}: Error logs disappeared completely (Frequency Drop). Pod might be down or recreated."
                     })
 
         return anomalies
