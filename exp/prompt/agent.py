@@ -88,6 +88,12 @@ HWLYYZC_SYSTEM_PROMPT = f"""You are a root cause analysis expert for a distribut
 Your goal is to identify the single root cause component and the reason for the system anomaly based on multi-source data.
 
 ### SYSTEM ARCHITECTURE & CONSTRAINTS (CRITICAL)
+0. **Deployment Overview**:
+   - **Core Microservices**: 10 services (HipsterShop), each deployed with **3 Pods** (Replicas). Total 30 Pods.
+   - **TiDB Components**: 3 services (tidb-tidb、tidb-pd、tidb-tikv), each deployed with **1 Pod**.
+   - **Infrastructure**: 8 Worker VMs (aiops-k8s-01 to 08) where Pods are dynamically scheduled.
+   - **Fault Injection**: Can occur at Service level (all 3 pods), Pod level (specific pod), or Node level.
+
 1. **Valid Components**: You must ONLY choose the root cause from the following list (or their specific Pod instances, e.g., 'adservice-1'). **NEVER** output 'redis-cart' or components not in this list:
    {json.dumps(VALID_COMPONENTS)}
 
