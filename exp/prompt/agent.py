@@ -1,42 +1,136 @@
-rules = """## RULES OF FAILURE DIAGNOSIS:
+import json
+# -----------------------------------------------------------------------------
+# 1. 合法组件列表 (VALID COMPONENTS)
+# -----------------------------------------------------------------------------
+# 注意：
+# 1. redis-cart 虽然存在于架构中，但不在评测范围内，已剔除。
+# 2. frontend 在文档列表中虽未明文列出，但在正确答案中出现，且是第10个核心服务，必须包含。
+# 3. 节点列表包含 aiops-k8s-01~08 及 k8s-master1~3。
+# -----------------------------------------------------------------------------
+VALID_COMPONENTS = [
+    # --- Microservices (10个) ---
+    "adservice", 
+    "cartservice", 
+    "checkoutservice", 
+    "currencyservice", 
+    "emailservice", 
+    "frontend", 
+    "paymentservice", 
+    "productcatalogservice", 
+    "recommendationservice", 
+    "shippingservice",
+    
+    # --- TiDB Components (3个) ---
+    "tidb-pd", 
+    "tidb-tidb", 
+    "tidb-tikv",
+    
+    # --- Nodes (11个) ---
+    "aiops-k8s-01", "aiops-k8s-02", "aiops-k8s-03", "aiops-k8s-04",
+    "aiops-k8s-05", "aiops-k8s-06", "aiops-k8s-07", "aiops-k8s-08",
+    "k8s-master1", "k8s-master2", "k8s-master3"
+]
 
-What you SHOULD do:
+# -----------------------------------------------------------------------------
+# 2. 调用拓扑关系 (CALL TOPOLOGY)
+# -----------------------------------------------------------------------------
+# Key: 上游服务 (Caller)
+# Value: 下游服务列表 (Callees)
+# 依据 Google HipsterShop 架构图定义，用于“下游优先”策略。
+# 移除了指向 redis-cart 的依赖，确保推理闭环在 Valid Components 内。
+# -----------------------------------------------------------------------------
+CALL_TOPOLOGY = {
+    # Frontend 是入口，调用大多基础服务
+    "frontend": [
+        "adservice", 
+        "cartservice", 
+        "recommendationservice", 
+        "checkoutservice", 
+        "currencyservice", 
+        "shippingservice", 
+        "productcatalogservice"
+    ],
+    
+    # CheckoutService 是核心聚合服务，调用支付、邮件、购物车等
+    "checkoutservice": [
+        "cartservice", 
+        "shippingservice", 
+        "productcatalogservice", 
+        "currencyservice", 
+        "paymentservice", 
+        "emailservice"
+    ],
+    
+    # Recommendationservice 依赖 ProductCatalog
+    "recommendationservice": [
+        "productcatalogservice"
+    ],
+    
+    # TiDB 内部拓扑 (近似逻辑：Server -> PD/TiKV)
+    "tidb-tidb": ["tidb-pd", "tidb-tikv"],
+    "tidb-tikv": ["tidb-pd"],
+    
+    # 以下服务处于调用链末端 (Leaf Nodes)，通常没有下游微服务调用
+    "adservice": [],
+    "cartservice": [],        # 实际调用 Redis，但 Redis 不在评测列表，故置空
+    "currencyservice": [],
+    "emailservice": [],
+    "paymentservice": [],
+    "productcatalogservice": [],
+    "shippingservice": [],
+    "tidb-pd": []
+}
 
-1. **Follow the workflow of `preprocess -> anomaly detection -> fault identification -> root cause localization` for failure diagnosis.** 
-    1.1. Preprocess:
-        - Aggregate each KPI of each components that are possible to be the root cause component to obtain multiple time series classified by 'component-KPI' (e.g., service_A-cpu_usage_pct).
-        - Then, calculate global thresholds (e.g., global P95, where 'global' means the threshold of all 'component-KPI' time series within a whole metric file) for each 'component-KPI' time series. - Finally, filter data within the given time duration for all time series to perform further analysis.
-        - The root cause can be at the **Service**, **Pod**, or **Node** level. 
-    1.2. Anomaly detection: 
-        - An anomaly is typically a data point that exceeds the global threshold.
-        - Look for anomalies below a certain threshold (e.g., <=P95, <=P15, or <=P5) in traffic KPIs or business KPIs (e.g., success rate (ss)) since some network failures can cause a sudden drop on them due to packet loss.
-        - Loose the global threshold (e.g., from >=P95 to >=P90, or from <=P95 to <=P15, <=P5) if you really cannot find any anomalies.
-    1.3. Fault identification: 
-        - A 'fault' is a consecutive sub-series of a specific component-KPI time series. Thus, fault identification is the process of identifying which components experienced faults, on which resources, and at what occurrence time points.
-        - Filter out isolated noise spikes to locate faults.
-        - Faults where the maximum (or minimum) value in the sub-series only slightly exceeds (or falls below) the threshold (e.g., threshold breach <= 50% of the extremal), it’s likely a false positive caused by random KPI fluctuations, and should be excluded.
-    1.4. Root cause localization: 
-        - The objective of root cause localization is to determine which identified 'fault' is the root cause of the failure. The root cause occurrence time, component, and reason can be derived from the first piece of data point of that fault.
-        - If multiple faulty components are identified at **different levels** (e.g., some being containers and others nodes), and all of them are potential root cause candidates, while the issue itself describes a **single failure**, the root cause level should be determined by the fault that shows the most significant deviation from the threshold (i.e., >> 50%). However, this method is only applicable to identify the root cause level, not the root cause component. If there are multiple faulty components at the same level, you should use traces and logs to identify the root cause component.
-        - If multiple service-level faulty components are identified, the root cause component is typically the last (the most downstream in a call chain) **faulty** service within a trace. Use traces to identify the root cause component among multiple faulty services.
-        - If multiple container-level faulty components are identified, the root cause component is typically the last (the most downstream in a call chain) **faulty** container within a trace. Use traces to identify the root cause component among multiple faulty container.
-        - If multiple node-level faulty components are identified and the issue doesn't specify **a single failure**, each of these nodes might be the root cause of separate failures. Otherwise, the predominant nodes with the most faults is the root cause component. The node-level failure do not propagate, and trace only captures communication between all containers or all services.
-        - If only one component's one resource KPI has one fault occurred in a specific time, that fault is the root cause. Otherwise, you should use traces and logs to identify the root cause component and reason.
-2. **Follow the order of `threshold calculation -> data extraction -> metric analysis -> trace analysis -> log analysis` for failure diagnosis.** 
-    2.0. Before analysis: You should extract and filter the data to include those within the failure duration only after the global threshold has been calculated. After these two steps, you can perform metric analysis, trace analysis, and log analysis.
-    2.1. Metric analysis: Use metrics to calculate whether each KPIs of each component has consecutive anomalies beyond the global threshold is the fastest way to find the faults. Since there are a large number of traces and logs, metrics analysis should first be used to narrow down the search space of duration and components.
-    2.2. Trace analysis: Use traces can further localize which container-level or service-level faulty component is the root cause components when there are multiple faulty components at the same level (container or service) identified by metrics analysis.
-    2.3. Log analysis: Use logs can further localize which resource is the root cause reason when there are multiple faulty resource KPIs of a component identified by metrics analysis. Logs can also help to identify the root cause component among multiple faulty components at the same level.
-    2.4. Always confirm whether the target key or field is valid (e.g., component's name, KPI's name, trace ID, log ID, etc.) when Executor's retrieval result is empty.
+# -----------------------------------------------------------------------------
+# 3. System Prompt (hwlyyzc 方案定制)
+# -----------------------------------------------------------------------------
+HWLYYZC_SYSTEM_PROMPT = f"""You are a root cause analysis expert for a distributed microservice system (HipsterShop + TiDB).
+Your goal is to identify the single root cause component and the reason for the system anomaly based on multi-source data.
 
-What you SHOULD NOT do:
+### SYSTEM ARCHITECTURE & CONSTRAINTS (CRITICAL)
+1. **Valid Components**: You must ONLY choose the root cause from the following list (or their specific Pod instances, e.g., 'adservice-1'). **NEVER** output 'redis-cart' or components not in this list:
+   {json.dumps(VALID_COMPONENTS)}
 
-1. **DO NOT include any programming language (Python) in your response.** Instead, you should provide a ordered list of steps with concrete description in natural language (English).
-2. **DO NOT convert the timestamp to datetime or convert the datetime to timestamp by yourself.** These detailed process will be handled by the Executor.
-3. **DO NOT use the local data (filtered/cached series in specific time duration) to calculate the global threshold of aggregated 'component-KPI' time series.** Always use the entire KPI series of a specific component within a metric file (typically includes one day's KPIs) to calculate the threshold. To obtain global threshold, you can first aggregate each component's each KPI to calculate their threshold, and then retrieve the objective time duration of aggregated 'component-KPI' to perform anomaly detection and spike filtering.
-4. **DO NOT visualize the data or draw pictures or graphs via Python.** The Executor can only provide text-based results. Never include the `matplotlib` or `seaborn` library in the code.
-5. **DO NOT save anything in the local file system.** Cache the intermediate results in the IPython Kernel. Never use the bash command in the code cell.
-6. **DO NOT calculate threshold AFTER filtering data within the given time duration.** Always calculate global thresholds using the entire KPI series of a specific component within a metric file BEFORE filtering data within the given time duration.
-7. **DO NOT query a specific KPI without knowing which KPIs are available.** Different systems may have completely different KPI naming conventions. If you want to query a specific KPI, first ensure that you are aware of all the available KPIs.
-8. **DO NOT mistakenly identify a healthy (non-faulty) service at the downstream end of a trace that includes faulty components as the root cause.** The root cause component should be the most downstream **faulty** service to appear within the trace call chain, which must first and foremost be a FAULTY component identified by metrics analysis.
-9. **DO NOT focus solely on warning or error logs during log analysis. Many info logs contain critical information about service operations and interactions between services, which can be valuable for root cause analysis.**"""
+2. **Topology (Upstream -> Downstream)**:
+   {json.dumps(CALL_TOPOLOGY)}
+
+### SCORING & REASONING RULES (Follow hwlyyzc Strategy)
+Apply these rules to evaluate candidates. Provide a mental score for each candidate.
+1. **Multi-source Corroboration (+1)**: Anomaly appears in multiple sources (e.g., Metrics AND Logs).
+2. **Trace Severity (+2)**: Trace shows `status_code >= 400`, `timeout`, `deadline exceeded`.
+3. **Log Keywords (+1)**: Logs contain `error`, `exception`, `fail`, `panic`.
+4. **Downstream Priority (+4)**: In a call chain (A->B), if both are anomalous, **B (Downstream)** is likely the root cause. A is likely just affecting by B.
+5. **Restart/Kill Signals (+10)**: 
+   - Logs: `Start`, `Ready`, `Killing`, `recreated`, `shutdown`.
+   - Metrics: Sudden drop in CPU/Memory to 0 followed by change, or `uptime` reset.
+   - Trace: `connection refused` (often implies pod is dead/restarting).
+   - **Verdict**: If a Pod Restart is detected, it is almost ALWAYS the root cause component. Reason is usually "pod kill", "pod failure", or "memory stress" (OOM).
+
+### REASONING STEPS
+1. **Scan for Restart/Kill**: Check logs/metrics for pod restarts. If found, pick that Pod.
+2. **Scan for Node Issues**: If multiple pods on one Node (e.g., aiops-k8s-04) fail, the Node is the root cause.
+3. **Apply Downstream Priority**: Map anomalies to the Topology. Find the deepest downstream service.
+4. **Determine Reason**:
+   - Trace `5xx`/`timeout` -> "network delay", "network corrupt", "network loss".
+   - Metric High CPU -> "cpu stress".
+   - Metric High Mem -> "memory stress".
+   - Metric High Disk -> "disk fill".
+   - Log `IOError` -> "io fault".
+   - Log `DNS` -> "dns error".
+
+### OUTPUT FORMAT
+Strictly output a JSON object. No markdown.
+{{
+    "component": "Exact name from Valid Components list (e.g. 'checkoutservice', 'adservice-0', 'aiops-k8s-06')",
+    "reason": "Concise reason (max 20 words)",
+    "reasoning_trace": [
+        {{"step": 1, "action": "Analyze Metrics", "observation": "..."}},
+        {{"step": 2, "action": "Analyze Traces", "observation": "..."}},
+        {{"step": 3, "action": "Analyze Logs", "observation": "..."}},
+        {{"step": 4, "action": "Final Judgment", "observation": "..."}}
+    ]
+}}
+"""
+
+# 导出变量供其他模块使用
+rules = HWLYYZC_SYSTEM_PROMPT
