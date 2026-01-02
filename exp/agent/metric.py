@@ -16,7 +16,7 @@ from tslearn.clustering import TimeSeriesKMeans
 from tslearn.utils import to_time_series_dataset
 import logging
 
-# Import the enhanced analyzer
+# 引入增强分析器
 try:
     from .enhanced_metric_analyzer import MetricAnalyzer
 except ImportError:
@@ -191,56 +191,95 @@ class MetricAgent:
         results = []
         filter = (ds.field("time") >= start) & (ds.field("time") <= end)
         with ThreadPoolExecutor(max_workers=max_workers) as pool:
-            futures = {pool.submit(load_parquet, Path(f), filter=filter): f for f in files}
+            futures = {pool.submit(load_parquet, Path(f), filter_=filter): f for f in files}
             for future in as_completed(futures):
                 df = future.result()
                 if not df.empty:
+                    # 识别 value 列：排除掉 Schema 中定义的列，剩下的就是 value 列
                     metric_candidates = list(set(df.columns) - set(self.infra_schema_fields))
                     if len(metric_candidates) == 1:
                         df["value"] = df[metric_candidates[0]]
-                        df["pod"] = df["pod"].astype(str).str.replace(r"-\d+$", "", regex=True)
+                        
+                        # 处理缺失 pod 列的情况（Node 或 TiDB 指标通常没有 pod 列）
+                        if "pod" not in df.columns:
+                            # 优先使用 instance 作为标识符（如 Node 名或 IP:Port）
+                            if "instance" in df.columns:
+                                df["pod"] = df["instance"]
+                            else:
+                                df["pod"] = "unknown"
+
+                        df["pod"] = df["pod"].astype(str)
+                        
+                        # 确保所有需要的 infra_fields 都存在，不存在的填充 None
+                        for field in self.infra_fields:
+                            if field not in df.columns:
+                                df[field] = None
+                                
                         results.append(df[self.infra_fields])
 
         return pd.concat(results, ignore_index=True) if results else pd.DataFrame()
 
     def score(self, start_time: datetime, end_time: datetime) -> List:
         scores = []
-        apm = self.load_apm(start_time, end_time)
-        if apm.empty:
-            return scores
         
-        for service, group in apm.groupby("object_id"):
-            if group.empty:
-                continue
-            s = 0.0
+        # 1. 分析 APM 指标 (服务级别)
+        apm = self.load_apm(start_time, end_time)
+        if not apm.empty:
+            for service, group in apm.groupby("object_id"):
+                if group.empty:
+                    continue
+                
+                if group['error_ratio'].mean() > self.error_threshold:
+                    scores.append({
+                        'service': service,
+                        'kpi': 'error_ratio',
+                        'reason': f"Error ratio {group['error_ratio'].mean():.2f} exceeds threshold {self.error_threshold:.2f}",\
+                    })
+                if group['timeout'].mean() > self.timeout_threshold:
+                    scores.append({
+                        'service': service,
+                        'kpi': 'timeout',
+                        'reason': f"Timeout {group['timeout'].mean():.2f} exceeds threshold {self.timeout_threshold:.2f}",
+                    })
+        
+        # 2. 分析基础设施和组件指标 (Pod/Node 级别)
+        # 调用 query_metrics 检测 CPU/内存/TiDB 异常
+        infra_result = self.query_metrics(start_time, end_time)
+        
+        # 如果在基础设施中发现显著异常，将其添加到 scores 中
+        # main.py 使用此处返回的列表来告知 JudgeAgent
+        if infra_result and infra_result.get("observation") != "No significant metric anomalies detected.":
+            scores.append({
+                'service': 'Infrastructure/Components',
+                'kpi': 'various',
+                'reason': infra_result["observation"],
+                'details': infra_result.get("events", [])
+            })
 
-            if group['error_ratio'].mean() > self.error_threshold:
-                delta = group['error_ratio'].mean() - self.error_threshold
-                s += delta * self.weights.get("error_ratio", 1.0)
-                scores.append({
-                    'service': service,
-                    'kpi': 'error_ratio',
-                    'reason': f"Error ratio {group['error_ratio'].mean():.2f} exceeds threshold {self.error_threshold:.2f}",\
-                })
-            if group['timeout'].mean() > self.timeout_threshold:
-                delta = group['timeout'].mean() - self.timeout_threshold
-                s += delta * self.weights.get("timeout", 1.0)
-                scores.append({
-                    'service': service,
-                    'kpi': 'timeout',
-                    'reason': f"Timeout {group['timeout'].mean():.2f} exceeds threshold {self.timeout_threshold:.2f}",
-                })
         return scores
 
     def query_metrics(self, start_time: datetime, end_time: datetime):
-        infra = self.load_infra_or_other('infra/infra_pod/*.parquet', start_time, end_time)
+        # 修改：同时加载 Pod, Node, TiDB 和 Other 指标
+        infra_pod = self.load_infra_or_other('infra/infra_pod/*.parquet', start_time, end_time)
+        infra_node = self.load_infra_or_other('infra/infra_node/*.parquet', start_time, end_time)
+        infra_tidb = self.load_infra_or_other('infra/infra_tidb/*.parquet', start_time, end_time)
         other = self.load_infra_or_other('other/*.parquet', start_time, end_time)
-        infra_and_other = pd.concat([infra, other], ignore_index=True)
+        
+        # 合并所有基础设施指标
+        infra_and_other = pd.concat([infra_pod, infra_node, infra_tidb, other], ignore_index=True)
+        
         logger.info(f"Loaded {len(infra_and_other)} infra/other records from {start_time} to {end_time}")
 
         anomalies = []
         details = {}
         events = []
+
+        if infra_and_other.empty:
+             return {
+                "observation": "No significant metric anomalies detected.",
+                "details": {},
+                "events": []
+            }
 
         for pod, pod_group in infra_and_other.groupby("pod"):
             for kpi, group in pod_group.groupby("kpi_key"):
@@ -288,7 +327,8 @@ class MetricAgent:
         if abnormal_times:
             events.append({"type": "joint_anomaly", "top_kpis": top_kpis, "timestamps": [str(t) for t in abnormal_times]})
             for kpi in top_kpis:
-                anomalies.append((pod, kpi))
+                # 标记为系统级或特定 Pod（如果可识别），此处暂标记 KPI 为通用
+                anomalies.append(("system", kpi))
                 details.setdefault(kpi, {}).update({"joint_anomaly_times": abnormal_times})
 
         summary = {}
