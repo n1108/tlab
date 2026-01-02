@@ -191,17 +191,30 @@ class MetricAgent:
         results = []
         filter = (ds.field("time") >= start) & (ds.field("time") <= end)
         with ThreadPoolExecutor(max_workers=max_workers) as pool:
-            # 修复：正确使用与 utils/input.py 定义匹配的 filter_ 参数
             futures = {pool.submit(load_parquet, Path(f), filter_=filter): f for f in files}
             for future in as_completed(futures):
                 df = future.result()
                 if not df.empty:
+                    # 识别 value 列：排除掉 Schema 中定义的列，剩下的就是 value 列
                     metric_candidates = list(set(df.columns) - set(self.infra_schema_fields))
                     if len(metric_candidates) == 1:
                         df["value"] = df[metric_candidates[0]]
+                        
+                        # 处理缺失 pod 列的情况（Node 或 TiDB 指标通常没有 pod 列）
+                        if "pod" not in df.columns:
+                            # 优先使用 instance 作为标识符（如 Node 名或 IP:Port）
+                            if "instance" in df.columns:
+                                df["pod"] = df["instance"]
+                            else:
+                                df["pod"] = "unknown"
+
                         df["pod"] = df["pod"].astype(str)
-                        # 修复：不要去掉 Pod 后缀，以保留 Pod 级别的粒度，便于定位特定副本异常
-                        # df["pod"] = df["pod"].astype(str).str.replace(r"-\d+$", "", regex=True)
+                        
+                        # 确保所有需要的 infra_fields 都存在，不存在的填充 None
+                        for field in self.infra_fields:
+                            if field not in df.columns:
+                                df[field] = None
+                                
                         results.append(df[self.infra_fields])
 
         return pd.concat(results, ignore_index=True) if results else pd.DataFrame()
@@ -246,9 +259,15 @@ class MetricAgent:
         return scores
 
     def query_metrics(self, start_time: datetime, end_time: datetime):
-        infra = self.load_infra_or_other('infra/infra_pod/*.parquet', start_time, end_time)
+        # 修改：同时加载 Pod, Node, TiDB 和 Other 指标
+        infra_pod = self.load_infra_or_other('infra/infra_pod/*.parquet', start_time, end_time)
+        infra_node = self.load_infra_or_other('infra/infra_node/*.parquet', start_time, end_time)
+        infra_tidb = self.load_infra_or_other('infra/infra_tidb/*.parquet', start_time, end_time)
         other = self.load_infra_or_other('other/*.parquet', start_time, end_time)
-        infra_and_other = pd.concat([infra, other], ignore_index=True)
+        
+        # 合并所有基础设施指标
+        infra_and_other = pd.concat([infra_pod, infra_node, infra_tidb, other], ignore_index=True)
+        
         logger.info(f"Loaded {len(infra_and_other)} infra/other records from {start_time} to {end_time}")
 
         anomalies = []
