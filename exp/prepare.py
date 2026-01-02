@@ -80,7 +80,7 @@ def process_directory_for_date(date: datetime, subdirs: list[str]) -> None:
 def main():
     service_dirs = ["metric-parquet/apm/service"]
     
-    # 修正：添加 infra_node 和 infra_tidb
+    # 添加 infra_node 和 infra_tidb
     infra_dirs = [
         "metric-parquet/infra/infra_pod",
         "metric-parquet/infra/infra_node", 

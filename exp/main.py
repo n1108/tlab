@@ -1,7 +1,3 @@
-# ================================================
-# FILE: exp/main.py
-# ================================================
-# ... imports 保持不变 ...
 import logging
 import json
 import argparse
@@ -37,24 +33,21 @@ def process_anomaly(item: Dict, metric_agent: MetricAgent, trace_agent: TraceAge
     logger.info(f"Processing {uuid} | Time: {start_time} - {end_time}")
 
     # 1. 获取各 Agent 的原始结果 (List or Dict)
-    # MetricAgent.score 返回 List[Dict] 或 Dict (取决于 metric.py 的实现，根据提供的代码是 List)
+    # MetricAgent.score 返回 List[Dict]
     metric_result = metric_agent.score(start_time, end_time)
     
     # TraceAgent.score 返回 List[Dict] (aggregated links)
     trace_result = trace_agent.score(start_time, end_time)
     
     # LogAgent.score 返回 List[Dict] (anomalies)
-    # LogAgent 需要 component 参数吗？根据 log.py 代码，score 不需要 component，它会全量扫描
     log_result = log_agent.score(start_time, end_time)
 
     # 2. 将原始结果传给 JudgeAgent 进行融合推理
-    # JudgeAgent 内部负责将这些结构化数据格式化为 Prompt 字符串
     analysis = judge_agent.analyze(uuid, description, metric_result, trace_result, log_result)
     
     return analysis
 
 def main(args: argparse.Namespace, uuid: str):
-    # ... 其余 main 函数代码保持不变，与提供的文件一致 ...
     dataset = str(args.dataset)
     log_file = f"results/{dataset}/logs/{uuid}.log"
     log_level = str(args.log_level).upper()
@@ -80,8 +73,6 @@ def main(args: argparse.Namespace, uuid: str):
 
     os.makedirs(os.path.dirname(output), exist_ok=True)
     
-    # ... 线程池处理逻辑保持不变 ...
-    # 建议使用单线程调试，确保逻辑正确
     with open(output, 'a', encoding='utf-8') as o:
         for anomaly in anomalies:
              res = process_anomaly(anomaly, metric_agent, trace_agent, log_agent, judge_agent)

@@ -2,11 +2,6 @@ import json
 # -----------------------------------------------------------------------------
 # 1. 合法组件列表 (VALID COMPONENTS)
 # -----------------------------------------------------------------------------
-# 注意：
-# 1. redis-cart 虽然存在于架构中，但不在评测范围内，已剔除。
-# 2. frontend 在文档列表中虽未明文列出，但在正确答案中出现，且是第10个核心服务，必须包含。
-# 3. 节点列表包含 aiops-k8s-01~08 及 k8s-master1~3。
-# -----------------------------------------------------------------------------
 VALID_COMPONENTS = [
     # --- Microservices (10个) ---
     "adservice", 
@@ -72,7 +67,7 @@ CALL_TOPOLOGY = {
     
     # 以下服务处于调用链末端 (Leaf Nodes)，通常没有下游微服务调用
     "adservice": [],
-    "cartservice": [],        # 实际调用 Redis，但 Redis 不在评测列表，故置空
+    "cartservice": [],
     "currencyservice": [],
     "emailservice": [],
     "paymentservice": [],
@@ -82,7 +77,7 @@ CALL_TOPOLOGY = {
 }
 
 # -----------------------------------------------------------------------------
-# 3. System Prompt (hwlyyzc 方案定制)
+# 3. System Prompt (hwlyyzc 方案)
 # -----------------------------------------------------------------------------
 HWLYYZC_SYSTEM_PROMPT = f"""You are a root cause analysis expert for a distributed microservice system (HipsterShop + TiDB).
 Your goal is to identify the single root cause component and the reason for the system anomaly based on multi-source data.
