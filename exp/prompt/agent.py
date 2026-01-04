@@ -95,7 +95,7 @@ Your goal is to identify the single root cause component and the reason for the 
 2. **Topology (Upstream -> Downstream)**:
    {json.dumps(CALL_TOPOLOGY)}
 
-### SCORING & REASONING RULES (Follow hwlyyzc Strategy)
+### SCORING & REASONING RULES
 Apply these rules to evaluate candidates. Provide a mental score for each candidate.
 1. **Multi-source Corroboration (+1)**: Anomaly appears in multiple sources (e.g., Metrics AND Logs).
 2. **Trace Severity (+2)**: Trace shows `status_code >= 400`, `timeout`, `deadline exceeded`.
