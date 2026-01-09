@@ -164,8 +164,8 @@ class MetricAgent:
         self.detector = EnsembleDetector()
         
         # Fields to load (Optimization: Don't load everything)
-        self.apm_load_fields = ["time", "object_id", "error_ratio", "timeout", "rrt", "rrt_max"]
-        self.infra_load_fields = ["time", "instance", "pod", "value", "kpi_key"]
+        self.apm_load_fields = ["time", "object_id", "error_ratio", "client_error_ratio", "server_error_ratio", "timeout", "rrt", "rrt_max"]
+        self.infra_load_fields = ["time", "instance", "pod", "value", "kpi_key", "kubernetes_node"]
 
     def load_data(self, start: datetime, end: datetime, max_workers=4) -> pd.DataFrame:
         """
@@ -179,15 +179,23 @@ class MetricAgent:
         time_filter = (ds.field("time") >= start) & (ds.field("time") <= end)
 
         # 1. APM Data Loader (Needs Melting)
-        apm_glob = f"{self.root_path}/*/metric-parquet/apm/service/*.parquet"
+        # Load both service-level and pod-level APM metrics
+        apm_patterns = [
+            "apm/service/*.parquet",
+            "apm/pod/*.parquet"
+        ]
         
         def _process_apm(f):
             try:
                 df = load_parquet(Path(f), self.apm_load_fields, time_filter)
                 if df.empty: return None
+                
+                # Identify which columns are metrics (excluding ID/Time)
+                metric_cols = [c for c in df.columns if c in self.apm_load_fields and c not in ["time", "object_id"]]
+                
                 # Transform wide APM table to long format
                 melted = df.melt(id_vars=["time", "object_id"], 
-                                 value_vars=["error_ratio", "timeout", "rrt", "rrt_max"],
+                                 value_vars=metric_cols,
                                  var_name="kpi_key", value_name="value")
                 melted.rename(columns={"object_id": "pod"}, inplace=True)
                 return melted
@@ -221,10 +229,42 @@ class MetricAgent:
                 
                 # Normalize columns
                 df["value"] = df[value_candidates[0]] # Take the metric value
+
+                # Pre-clean string "null" values to actual None
+                for col in ["pod", "kubernetes_node", "instance", "object_type"]:
+                    if col in df.columns:
+                        df[col] = df[col].replace("null", None)
                 
-                # Ensure 'pod' exists (Node metrics use 'instance')
-                if "pod" not in df.columns:
-                    df["pod"] = df["instance"] if "instance" in df.columns else "unknown"
+                # Correctly determine the component name (Service, Node, or Pod)
+                file_str = str(f)
+                if "infra_node" in file_str:
+                    # Node metrics: prioritize kubernetes_node, then instance
+                    df["pod"] = df["kubernetes_node"].fillna(df["instance"] if "instance" in df.columns else "unknown")
+                elif "infra_pod" in file_str:
+                    # Pod metrics: use pod column
+                    df["pod"] = df["pod"].fillna("unknown")
+                elif "infra_tidb" in file_str or "infra_pd" in file_str or "infra_tikv" in file_str:
+                    # TiDB components: construct name using object_type
+                    if "object_type" in df.columns:
+                        # Map object_type to valid component names
+                        type_map = {"tidb": "tidb-tidb", "pd": "tidb-pd", "tikv": "tidb-tikv"}
+                        df["pod"] = df["object_type"].map(type_map).fillna(df["object_type"])
+                        # Append -0 as per naming convention in valid components/groundtruth
+                        df["pod"] = df["pod"].apply(lambda x: f"{x}-0" if x in type_map.values() else x)
+                    elif "namespace" in df.columns and (df["namespace"] == "tidb").any():
+                        # If namespace is tidb but no object_type, try to infer from filename
+                        if "infra_pd" in file_str: df["pod"] = "tidb-pd-0"
+                        elif "infra_tikv" in file_str: df["pod"] = "tidb-tikv-0"
+                        elif "infra_tidb" in file_str: df["pod"] = "tidb-tidb-0"
+                        else: df["pod"] = df["pod"].fillna(df["instance"] if "instance" in df.columns else "unknown")
+                    else:
+                        df["pod"] = df["pod"].fillna(df["instance"] if "instance" in df.columns else "unknown")
+                else:
+                    # Other metrics: try pod, then instance
+                    df["pod"] = df["pod"].fillna(df["instance"] if "instance" in df.columns else "unknown")
+                
+                # Final fallback for any remaining nulls
+                df["pod"] = df["pod"].fillna("unknown")
                 
                 # Ensure 'kpi_key' exists
                 if "kpi_key" not in df.columns:
@@ -238,7 +278,9 @@ class MetricAgent:
         # Collect file paths
         for day in daterange(start, end):
             # APM Tasks
-            tasks.extend([(f, _process_apm) for f in glob.glob(apm_glob.replace("*", day, 1))])
+            for pattern in apm_patterns:
+                full_pattern = f"{self.root_path}/{day}/metric-parquet/{pattern}"
+                tasks.extend([(f, _process_apm) for f in glob.glob(full_pattern)])
             
             # Infra Tasks
             for pattern in infra_patterns:

@@ -62,6 +62,11 @@ class LogAgent:
 
     def load_logs(self, start: datetime, end: datetime, max_workers=4) -> pd.DataFrame:
         def callback(df: pd.DataFrame) -> pd.DataFrame:
+            # Clean string "null" values
+            for col in ['k8_pod', 'k8_node_name']:
+                if col in df.columns:
+                    df[col] = df[col].replace("null", None)
+            
             df['cleaned_message'] = df['message'].apply(self._preprocess_message)
             df = df.dropna(subset=['cleaned_message'])
             return df

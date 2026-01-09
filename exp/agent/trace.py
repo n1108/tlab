@@ -88,9 +88,11 @@ class TraceAgent:
                 if isinstance(tags, (list, np.ndarray)):
                     for tag in tags:
                         k = tag.get('key')
-                        if k == 'node_name': node = tag.get('value')
-                        elif k == 'namespace': ns = tag.get('value')
-                        elif k == 'name': pod = tag.get('value')
+                        v = tag.get('value')
+                        if v == "null": v = None
+                        if k == 'node_name': node = v
+                        elif k == 'namespace': ns = v
+                        elif k == 'name': pod = v
                 nodes.append(node)
                 nss.append(ns)
                 pods.append(pod)
