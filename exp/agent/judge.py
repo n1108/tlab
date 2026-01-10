@@ -36,17 +36,29 @@ class JudgeAgent:
             if source_type == "metric":
                 # MetricAgent 返回的是 list of dicts
                 if isinstance(obs_data, list):
-                    for item in obs_data[:15]: # 增加上下文长度
-                        svc = item.get('service', '')
-                        kpi = item.get('kpi', '')
+                    # 按组件聚合指标，节省 Token 且避免截断
+                    comp_metrics = {}
+                    for item in obs_data:
+                        svc = item.get('service', 'unknown')
+                        kpi = item.get('kpi', 'unknown')
                         reason = item.get('reason', '')
-                        details = item.get('details', [])
-                        detail_str = f", Details: {json.dumps(details, ensure_ascii=False)}" if details else ""
-                        summary.append(f"- Component: {svc}, KPI: {kpi}, Info: {reason}{detail_str}")
+                        # 提取 pattern
+                        pattern = reason.split(':')[-1].strip() if ':' in reason else reason
+                        
+                        if svc not in comp_metrics:
+                            comp_metrics[svc] = []
+                        comp_metrics[svc].append(f"{kpi} ({pattern})")
+                    
+                    # 按照组件输出，限制组件数量而不是总行数
+                    for svc, kpis in list(comp_metrics.items())[:100]: 
+                        kpi_str = ", ".join(kpis[:6])
+                        if len(kpis) > 6: kpi_str += "..."
+                        summary.append(f"- Component: {svc}, Anomalies: [{kpi_str}]")
+                
                 elif isinstance(obs_data, dict):
                     # 处理 MetricAgent.query_metrics 的返回格式
                     events = obs_data.get('events', [])
-                    for e in events[:15]:
+                    for e in events[:100]:
                         summary.append(f"- {e.get('pod', 'unknown')} ({e.get('kpi', 'unknown')}): {e.get('type')}")
                     if not events:
                         summary.append(str(obs_data.get('observation', '')))
@@ -54,11 +66,11 @@ class JudgeAgent:
             elif source_type == "trace":
                 # TraceAgent 返回 list of dicts (links)
                 if isinstance(obs_data, list):
-                    for link in obs_data[:10]: # Top 10 problematic links
+                    for link in obs_data[:50]: # 增加到 20 条链路
                         span = link.get('span', {})
                         details = link.get('details', [])
                         src, tgt = span.get('source'), span.get('target')
-                        for d in details[:3]: # Top 3 pods per link
+                        for d in details[:5]: # 每条链路增加到 5 个 pod
                             pod = d.get('pod')
                             node = d.get('node', 'unknown')
                             lat = d.get('avg_latency_ms')
@@ -69,7 +81,7 @@ class JudgeAgent:
             elif source_type == "log":
                 # LogAgent 返回 list of dicts
                 if isinstance(obs_data, list):
-                    for item in obs_data[:10]:
+                    for item in obs_data[:50]: # 增加到 20 条日志异常
                         comp = item.get('component')
                         svc = item.get('service', 'unknown')
                         node = item.get('node', 'unknown')
@@ -114,7 +126,6 @@ Based on the observations above and the SCORING RULES in the system prompt:
 1. Identify all suspect components.
 2. Apply the **Downstream Priority** rule: If 'frontend' and 'checkoutservice' are both anomalous, and frontend calls checkoutservice, prioritize 'checkoutservice'.
 3. Check for **Restart Signals**: If metrics show gaps or logs show startup messages, prioritize 'Pod Kill/Restart'.
-4. Check for **Node Level Issues**: If multiple pods on the same node (e.g., aiops-k8s-04) are anomalous, the root cause is likely the Node.
 
 Diagnose the single root cause component and the specific reason.
 """
