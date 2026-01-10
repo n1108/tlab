@@ -33,7 +33,7 @@ CALL_TOPOLOGY = {
 }
 
 # -----------------------------------------------------------------------------
-# 3. System Prompt (Strictly Aligned with PPT Page 14)
+# 3. System Prompt
 # -----------------------------------------------------------------------------
 HWLYYZC_SYSTEM_PROMPT = f"""You are a root cause analysis expert. Identify the root cause component and reason.
 

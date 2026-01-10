@@ -50,15 +50,14 @@ class JudgeAgent:
                         # 格式: kpi (time)
                         comp_metrics[svc].append(f"{kpi} at {first_time}")
                     
-                    for svc, details in list(comp_metrics.items())[:100]: 
-                        detail_str = "; ".join(details[:4]) # Limit per component
-                        if len(details) > 4: detail_str += "..."
+                    for svc, details in comp_metrics.items(): 
+                        detail_str = "; ".join(details)
                         summary.append(f"- {svc}: [{detail_str}]")
                 
                 # Handle direct dict output (fallback)
                 elif isinstance(obs_data, dict):
                     events = obs_data.get('events', [])
-                    for e in events[:50]:
+                    for e in events:
                         ts = e.get('timestamps', [])
                         t_str = ts[0] if ts else ""
                         summary.append(f"- {e.get('pod')} {e.get('kpi')}: {e.get('pattern')} at {t_str}")
@@ -66,23 +65,23 @@ class JudgeAgent:
             elif source_type == "trace":
                 # TraceAgent returns aggregated links
                 if isinstance(obs_data, list):
-                    for link in obs_data[:30]:
+                    for link in obs_data:
                         span = link.get('span', {})
                         details = link.get('details', [])
                         src, tgt = span.get('source'), span.get('target')
-                        for d in details[:3]: 
+                        for d in details: 
                             pod = d.get('pod')
                             node = d.get('node', 'unknown')
                             lat = d.get('avg_latency_ms')
                             errs = d.get('error_messages', [])
                             # Highlight errors for 'Trace Severity (+2)' rule
-                            err_str = f", Errs: {errs[:1]}" if errs else ""
+                            err_str = f", Errs: {errs}" if errs else ""
                             summary.append(f"- {src}->{tgt}: {pod} (Node:{node}, {lat}ms{err_str})")
 
             elif source_type == "log":
                 # LogAgent returns anomalies list
                 if isinstance(obs_data, list):
-                    for item in obs_data[:30]:
+                    for item in obs_data:
                         comp = item.get('component')
                         # Log keywords like 'connection refused' are crucial for 'Restart (+10)'
                         obs = item.get('observation', '')

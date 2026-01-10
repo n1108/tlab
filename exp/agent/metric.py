@@ -315,7 +315,7 @@ class MetricAgent:
                     "service": event.get("pod"),
                     "kpi": event.get("kpi"),
                     "reason": f"Metric: {event.get('kpi')} {event.get('pattern')}",
-                    "details": event.get("timestamps", [])[:3] # Keep it concise
+                    "details": event.get("timestamps", [])
                 })
         return scores
 
