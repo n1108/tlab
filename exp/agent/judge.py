@@ -5,132 +5,124 @@ import re
 from openai import OpenAI
 from typing import Dict, Any, List
 
-# 导入 hwlyyzc 方案的 Prompt 模板和静态知识
-from exp.prompt.agent import HWLYYZC_SYSTEM_PROMPT, CALL_TOPOLOGY, VALID_COMPONENTS
+# 导入更新后的 Prompt 模板
+from exp.prompt.agent import HWLYYZC_SYSTEM_PROMPT, VALID_COMPONENTS
 
 logger = logging.getLogger(__name__)
 
 class JudgeAgent:
     """
-    Implements the 'Large Model Root Cause Reasoning Layer' from hwlyyzc team.
-    Fuses system architecture, valid component list, and multi-source anomaly data.
+    Implements the 'Large Model Root Cause Reasoning Layer' aligned with PPT Page 14.
     """
 
     def __init__(self, api_key: str | None, api_url: str | None):
         self.api_key = api_key or os.getenv("DEEPSEEK_API_KEY")
         self.api_url = api_url or os.getenv("DEEPSEEK_API_URL")
         if not self.api_key:
-            logger.warning("JudgeAgent: API key not found. Reasoning will fail.")
+            logger.warning("JudgeAgent: API key not found.")
 
     def _format_observation(self, obs_data: Any, source_type: str) -> str:
-        """Helper to format complex observation objects into concise text for LLM."""
+        """
+        Formats raw observations into text, preserving TIMESTAMPS for 'Time Priority' logic.
+        """
         if not obs_data:
-            return "No significant anomalies detected."
+            return "No anomalies detected."
         
-        # 如果已经是字符串，直接返回
         if isinstance(obs_data, str):
             return obs_data
 
         summary = []
         try:
             if source_type == "metric":
-                # MetricAgent 返回的是 list of dicts
+                # MetricAgent returns list of dicts: 
+                # [{'service': 'adservice-0', 'kpi': 'cpu', 'reason': '...', 'details': ['2025-06-06 10:00:00']}]
                 if isinstance(obs_data, list):
-                    # 按组件聚合指标，节省 Token 且避免截断
                     comp_metrics = {}
                     for item in obs_data:
                         svc = item.get('service', 'unknown')
                         kpi = item.get('kpi', 'unknown')
-                        reason = item.get('reason', '')
-                        # 提取 pattern
-                        pattern = reason.split(':')[-1].strip() if ':' in reason else reason
+                        # Extract timestamps to help LLM with Time Priority
+                        timestamps = item.get('details', [])
+                        first_time = timestamps[0] if timestamps else "unknown time"
                         
                         if svc not in comp_metrics:
                             comp_metrics[svc] = []
-                        comp_metrics[svc].append(f"{kpi} ({pattern})")
+                        # 格式: kpi (time)
+                        comp_metrics[svc].append(f"{kpi} at {first_time}")
                     
-                    # 按照组件输出，限制组件数量而不是总行数
-                    for svc, kpis in list(comp_metrics.items())[:100]: 
-                        kpi_str = ", ".join(kpis[:6])
-                        if len(kpis) > 6: kpi_str += "..."
-                        summary.append(f"- Component: {svc}, Anomalies: [{kpi_str}]")
+                    for svc, details in list(comp_metrics.items())[:100]: 
+                        detail_str = "; ".join(details[:4]) # Limit per component
+                        if len(details) > 4: detail_str += "..."
+                        summary.append(f"- {svc}: [{detail_str}]")
                 
+                # Handle direct dict output (fallback)
                 elif isinstance(obs_data, dict):
-                    # 处理 MetricAgent.query_metrics 的返回格式
                     events = obs_data.get('events', [])
-                    for e in events[:100]:
-                        summary.append(f"- {e.get('pod', 'unknown')} ({e.get('kpi', 'unknown')}): {e.get('type')}")
-                    if not events:
-                        summary.append(str(obs_data.get('observation', '')))
+                    for e in events[:50]:
+                        ts = e.get('timestamps', [])
+                        t_str = ts[0] if ts else ""
+                        summary.append(f"- {e.get('pod')} {e.get('kpi')}: {e.get('pattern')} at {t_str}")
 
             elif source_type == "trace":
-                # TraceAgent 返回 list of dicts (links)
+                # TraceAgent returns aggregated links
                 if isinstance(obs_data, list):
-                    for link in obs_data[:50]: # 增加到 20 条链路
+                    for link in obs_data[:30]:
                         span = link.get('span', {})
                         details = link.get('details', [])
                         src, tgt = span.get('source'), span.get('target')
-                        for d in details[:5]: # 每条链路增加到 5 个 pod
+                        for d in details[:3]: 
                             pod = d.get('pod')
                             node = d.get('node', 'unknown')
                             lat = d.get('avg_latency_ms')
                             errs = d.get('error_messages', [])
-                            err_str = f", Errors: {errs}" if errs else ""
-                            summary.append(f"- Link {src}->{tgt}: Pod {pod} (Node: {node}, Latency: {lat}ms{err_str})")
+                            # Highlight errors for 'Trace Severity (+2)' rule
+                            err_str = f", Errs: {errs[:1]}" if errs else ""
+                            summary.append(f"- {src}->{tgt}: {pod} (Node:{node}, {lat}ms{err_str})")
 
             elif source_type == "log":
-                # LogAgent 返回 list of dicts
+                # LogAgent returns anomalies list
                 if isinstance(obs_data, list):
-                    for item in obs_data[:50]: # 增加到 20 条日志异常
+                    for item in obs_data[:30]:
                         comp = item.get('component')
-                        svc = item.get('service', 'unknown')
-                        node = item.get('node', 'unknown')
-                        obs = item.get('observation')
-                        summary.append(f"- Component: {comp} (Service: {svc}, Node: {node}), Log Analysis: {obs}")
+                        # Log keywords like 'connection refused' are crucial for 'Restart (+10)'
+                        obs = item.get('observation', '')
+                        # Try to keep it concise for the 20-word limit context
+                        summary.append(f"- {comp}: {obs}")
         
         except Exception as e:
-            logger.error(f"Error formatting {source_type} observation: {e}")
-            return str(obs_data)
+            logger.error(f"Error formatting {source_type}: {e}")
+            return "Format error."
 
-        return "\n".join(summary) if summary else "No significant details found."
+        return "\n".join(summary) if summary else "No significant details."
 
     def analyze(self, uuid: str, description: str, metric_result: Any, trace_result: Any, log_result: Any) -> Dict:
         """
-        Execute the reasoning process.
+        Constructs the prompt and calls the LLM.
         """
-        print(f"\n{'='*20} JudgeAgent Analysis: {uuid} {'='*20}")
-        logger.info(f"JudgeAgent: Analyzing anomaly {uuid}")
+        logger.info(f"JudgeAgent: Analyzing {uuid}")
 
-        # 1. Format inputs
-        metric_obs_str = self._format_observation(metric_result, "metric")
-        trace_obs_str = self._format_observation(trace_result, "trace")
-        log_obs_str = self._format_observation(log_result, "log")
+        # 1. Format inputs (Injecting Data)
+        metric_obs = self._format_observation(metric_result, "metric")
+        trace_obs = self._format_observation(trace_result, "trace")
+        log_obs = self._format_observation(log_result, "log")
 
-        # 2. Construct User Prompt
+        # 2. Construct User Prompt (The Dynamic Part)
         user_prompt = f"""
-Anomaly Description: {description}
+Anomaly Time/Desc: {description}
 
-### MULTI-SOURCE OBSERVATIONS
+[METRICS]
+{metric_obs}
 
-[1. METRIC ANOMALIES]
-{metric_obs_str}
+[TRACES]
+{trace_obs}
 
-[2. TRACE ANOMALIES]
-{trace_obs_str}
+[LOGS]
+{log_obs}
 
-[3. LOG ANOMALIES]
-{log_obs_str}
-
-### INSTRUCTIONS
-Based on the observations above and the SCORING RULES in the system prompt:
-1. Identify all suspect components.
-2. Apply the **Downstream Priority** rule: If 'frontend' and 'checkoutservice' are both anomalous, and frontend calls checkoutservice, prioritize 'checkoutservice'.
-3. Check for **Restart Signals**: If metrics show gaps or logs show startup messages, prioritize 'Pod Kill/Restart'.
-
-Diagnose the single root cause component and the specific reason.
+DIAGNOSE based on System Context & Scoring Criteria provided in System Prompt.
 """
-        # --- LOGGING PROMPT ---
-        print(f"--- [PROMPT CONSTRUCTED] ---\n{user_prompt}\n----------------------------")
+        
+        print(f"--- [PROMPT] ---\n{user_prompt}\n----------------")
 
         # 3. Call LLM
         client = OpenAI(api_key=self.api_key, base_url=self.api_url)
@@ -143,48 +135,47 @@ Diagnose the single root cause component and the specific reason.
                     {"role": "user", "content": user_prompt}
                 ],
                 response_format={"type": "json_object"},
-                temperature=0.1, 
-                top_p=0.9
+                temperature=0.1
             )
             
             content = response.choices[0].message.content
+            print(f"--- [RESPONSE] ---\n{content}\n------------------")
             
-            # --- LOGGING RESPONSE ---
-            print(f"--- [LLM RAW RESPONSE] ---\n{content}\n--------------------------")
-            
-            # 解析 JSON
+            # 4. Parse & Validate
             content = re.sub(r'^```json\s*|\s*```$', '', content.strip())
             parsed = json.loads(content)
-
-            # 4. 结果后处理与校验
+            
             component = parsed.get("component", "unknown")
-            reason = parsed.get("reason", "unknown")
-            
-            # 简单的防幻觉校验
+            # Fallback validation
             if component not in VALID_COMPONENTS:
-                base_svc = component.rsplit('-', 1)[0]
-                if base_svc in VALID_COMPONENTS:
-                    pass # 合法 Pod
+                # Simple heuristic correction if LLM outputs specific pod instead of service
+                base = component.rsplit('-', 1)[0]
+                if base in VALID_COMPONENTS:
+                    pass # Allow valid pods
                 elif component.startswith("aiops-k8s") or component.startswith("k8s-master"):
-                     pass # 合法 Node
+                    pass # Allow nodes
                 else:
-                    logger.warning(f"JudgeAgent: Potential hallucinated component '{component}'.")
-            
-            print(f"--- [FINAL RESULT] Component: {component}, Reason: {reason}")
-            
+                    logger.warning(f"Invalid component: {component}")
+
+            # Enforce 20-word limit on reason/observation (Post-processing)
+            reason = " ".join(parsed.get("reason", "").split()[:20])
+            trace = parsed.get("reasoning_trace", [])
+            for step in trace:
+                if "observation" in step:
+                    step["observation"] = " ".join(str(step["observation"]).split()[:20])
+
             return {
                 "uuid": uuid,
                 "component": component,
                 "reason": reason,
-                "reasoning_trace": parsed.get("reasoning_trace", [])
+                "reasoning_trace": trace
             }
 
         except Exception as e:
-            logger.error(f"JudgeAgent Analysis Failed: {e}", exc_info=True)
-            print(f"ERROR in JudgeAgent: {e}")
+            logger.error(f"Analysis failed: {e}")
             return {
                 "uuid": uuid,
                 "component": "unknown",
-                "reason": "Analysis failed due to internal error.",
+                "reason": "Analysis failed",
                 "reasoning_trace": []
             }
