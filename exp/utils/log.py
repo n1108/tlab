@@ -47,6 +47,6 @@ def setup_logger(filename: str = 'logs/analysis.log', level: str = 'INFO'):
     logger.addHandler(file_handler)
 
     # --- 重定向 print ---
-    # 将 sys.stdout 指向我们的代理类
+    # 将 sys.stdout 指向代理类
     # 这样所有 print(...) 都会被转换成 logger.info(...)
     sys.stdout = StreamToLogger(logger, logging.INFO)
