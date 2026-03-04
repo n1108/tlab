@@ -213,3 +213,6 @@ log_results/
 drain3_state.binary
 demo_results/
 log_dataset/
+
+# Unit Test
+unit-test/metric/results/
