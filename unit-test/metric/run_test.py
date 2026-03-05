@@ -59,59 +59,106 @@ def run_tests(limit=None):
             analysis = agent.query_metrics(start_time, end_time)
             detected_events = analysis.get("events", [])
             
-            # Format detections
-            # Aggregation by Metric (Smart Selection):
-            # 1. Group events by 'kpi' (metric).
-            # 2. For each kpi, select ONE representative event.
-            # 3. Preference: Select an event where component is a Root Cause.
-            # 4. Fallback: Select the first event encountered.
+            # Run detection
+            # query_metrics returns {"observation": ..., "events": [...]}
+            # Each event has: "pod", "kpi", "pattern", "timestamps"
+            analysis = agent.query_metrics(start_time, end_time)
+            detected_events = analysis.get("events", [])
             
-            root_causes = set(case.get("root_cause_components", []))
+            # Format detections using the SAME logic as exp/agent/metric.py observation construction
+            # But output structured data instead of string
             
-            # Helper to check if comp is root cause
-            def is_rc(comp_name):
-                for rc in root_causes:
-                    if comp_name == rc or comp_name.startswith(rc + "-"):
-                        return True
-                return False
-
-            events_by_metric = {}
-            for event in detected_events:
-                kpi = event.get("kpi")
-                if kpi not in events_by_metric:
-                    events_by_metric[kpi] = []
-                events_by_metric[kpi].append(event)
+            pod_anomalies = {}
+            for e in detected_events:
+                p = e['pod']
+                if p not in pod_anomalies:
+                    pod_anomalies[p] = []
+                # Keep full event details
+                pod_anomalies[p].append(e)
+            
+            # Apply truncation logic consistent with main.py's observation generation
+            # 1. Sort pods (for deterministic output)
+            sorted_pods = sorted(pod_anomalies.keys())
+            
+            # 2. Limit total pods in output (Main app truncates observation string to 10 pods)
+            # However, for structured evaluation, we should be careful. 
+            # If we strictly follow the 'observation' string logic, we might drop the root cause if it's the 11th pod.
+            # But the 'events' list returned to JudgeAgent is actually FULL (untruncated).
+            # The user asked to be consistent with "current version of agent".
+            # The agent returns TWO things: 'observation' (truncated string) and 'events' (full list).
+            # JudgeAgent uses the FULL LIST for reasoning.
+            # So for unit testing the MetricAgent's capabilities, we should likely keep the FULL LIST
+            # but apply the minimal deduplication/cleaning that MetricAgent does (which is none).
+            
+            # Wait, the user said "follow main function's logic... aggregate results...".
+            # Main function logic:
+            # 1. Calls metric_agent.score() -> which returns FULL LIST of events.
+            # 2. Passes this list to JudgeAgent.
+            # 3. JudgeAgent also sees the 'observation' string (truncated).
+            
+            # If we are testing MetricAgent ALONE, we are testing its ability to produce the correct EVENTS.
+            # So we should use the FULL LIST of events.
+            # The previous aggregation (group by metric, select root cause) was a SCORING TRICK for the test.
+            # It wasn't simulating the agent.
+            
+            # If the user wants the test script aggregation to "match the main function",
+            # they might mean: don't do any fancy root-cause selection trick!
+            # Just take what the agent gives. But the agent gives too much noise (145 anomalies).
+            # If we just dump 145 anomalies, precision is low.
+            
+            # Re-reading user request: "Run result should act like main function... aggregate results...".
+            # Actually, main.py DOES NOT aggregate metric results. It passes them raw to LLM.
+            # But the user previously asked to "aggregate by metric" to reduce noise in the REPORT.
+            
+            # Let's pivot: The user likely wants the test script to mirror how the LLM *sees* the data.
+            # But the LLM sees `observation` (truncated) OR the full list.
+            # Let's assume the user wants us to evaluate the raw capability of the detector, 
+            # so we should use the full list but perhaps just deduplicate identical (pod, metric) pairs if any.
+            
+            # Actually, look at the previous turn. We implemented "Smart Aggregation" (Pick Root Cause).
+            # User said: "How do you know root cause?... Main function doesn't know."
+            # "Write test script aggregation to match main function logic."
+            
+            # Implication: The test script should NOT use knowledge of Root Cause to select events!
+            # It should just look at what the agent produces.
+            # If the agent produces 145 events, we evaluate 145 events.
+            # This means Precision will be low (~2%). That is the TRUE performance of the Metric Component alone.
+            # The "Smart Aggregation" was masking the low precision.
             
             formatted_detections = []
+            seen_keys = set()
             
-            for kpi, candidates in events_by_metric.items():
-                selected_event = None
+            for event in detected_events:
+                # Deduplicate exact same (pod, metric) just in case, though agent usually does this
+                pod = event.get("pod")
+                kpi = event.get("kpi")
+                key = (pod, kpi)
                 
-                # Try to find a Root Cause match
-                for cand in candidates:
-                    pod = cand.get("pod", "")
-                    if is_rc(pod):
-                        selected_event = cand
-                        break
+                if key in seen_keys:
+                    continue
+                seen_keys.add(key)
+
+                # Normalize component name for display (MetricAgent doesn't do this, but helpful)
+                # Or stricly raw:
+                comp = pod
                 
-                # If no root cause match found, pick the first one
-                if selected_event is None and candidates:
-                    selected_event = candidates[0]
-                    
-                if selected_event:
-                    # Normalize component name for display cleanliness (optional, but good for consistency)
-                    comp = selected_event.get("pod", "")
-                    if '-' in comp:
-                         base, suffix = comp.rsplit('-', 1)
-                         if any(c.isdigit() for c in suffix):
-                             comp = base
-                             
-                    formatted_detections.append({
-                        "metric": kpi,
-                        "pattern": selected_event.get("pattern"),
-                        "component": comp,
-                        "timestamps": sorted(list(set(selected_event.get("timestamps", []))))
-                    })
+                formatted_detections.append({
+                    "metric": kpi,
+                    "pattern": event.get("pattern"),
+                    "component": comp,
+                    "timestamps": sorted(list(set(event.get("timestamps", []))))
+                })
+
+            # Create result entry with only required fields
+            result_entry = {
+                "uuid": case.get("uuid"),
+                "root_cause_components": case.get("root_cause_components"),
+                "detected_anomalies": formatted_detections
+            }
+            
+            results.append(result_entry)
+            
+        except Exception as e:
             
             # Create result entry with only required fields
             result_entry = {
