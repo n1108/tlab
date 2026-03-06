@@ -216,3 +216,5 @@ log_dataset/
 
 # Unit Test
 unit-test/metric/results/
+unit-test/metric/pattern-analysis/img/
+unit-test/metric/pattern-analysis/metric-series.txt
