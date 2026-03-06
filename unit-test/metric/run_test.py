@@ -59,36 +59,37 @@ def run_tests(limit=None):
             analysis = agent.query_metrics(start_time, end_time)
             detected_events = analysis.get("events", [])
             
-            pod_anomalies = {}
-            for e in detected_events:
-                p = e['pod']
-                if p not in pod_anomalies:
-                    pod_anomalies[p] = []
-                # Keep full event details
-                pod_anomalies[p].append(e)
-            
-            formatted_detections = []
-            seen_keys = set()
-            
+            # Aggregation by metric
+            aggregated_anomalies = {}
             for event in detected_events:
-                # Deduplicate exact same (pod, metric) just in case, though agent usually does this
                 pod = event.get("pod")
                 kpi = event.get("kpi")
-                key = (pod, kpi)
+                pattern = event.get("pattern")
+                timestamps = event.get("timestamps", [])
                 
-                if key in seen_keys:
-                    continue
-                seen_keys.add(key)
+                key = kpi
+                if key not in aggregated_anomalies:
+                    aggregated_anomalies[key] = {
+                        "patterns": set(),
+                        "components": set(),
+                        "timestamps": set()
+                    }
+                
+                if pattern:
+                    aggregated_anomalies[key]["patterns"].add(pattern)
+                
+                if pod:
+                    aggregated_anomalies[key]["components"].add(pod)
+                
+                aggregated_anomalies[key]["timestamps"].update(timestamps)
 
-                # Normalize component name for display (MetricAgent doesn't do this, but helpful)
-                # Or stricly raw:
-                comp = pod
-                
+            formatted_detections = []
+            for kpi, data in aggregated_anomalies.items():
                 formatted_detections.append({
                     "metric": kpi,
-                    "pattern": event.get("pattern"),
-                    "component": comp,
-                    "timestamps": sorted(list(set(event.get("timestamps", []))))
+                    "pattern": sorted(list(data["patterns"])),
+                    "component": sorted(list(data["components"])),
+                    "timestamps": sorted(list(data["timestamps"]))
                 })
 
             # Create result entry with only required fields
@@ -161,17 +162,25 @@ def evaluate_accuracy(results, test_cases):
         detected_items = res.get("detected_anomalies", [])
         
         # Helper to check if a component is a root cause or a pod of it
-        def is_root_cause(comp_name):
-            for rc in root_causes:
-                if comp_name == rc or comp_name.startswith(rc + "-"):
-                    return True
-            return False
+        def is_root_cause(comp_name_or_list):
+            if isinstance(comp_name_or_list, list):
+                for comp_name in comp_name_or_list:
+                    for rc in root_causes:
+                        if comp_name == rc or comp_name.startswith(rc + "-"):
+                            return True
+                return False
+            else:
+                comp_name = comp_name_or_list
+                for rc in root_causes:
+                    if comp_name == rc or comp_name.startswith(rc + "-"):
+                        return True
+                return False
 
         # --- Calculate Precision (Accuracy of Detections) ---
         for d in detected_items:
             total_detected_count += 1
             
-            d_comp = d.get("component", "")
+            d_comp = d.get("component", [])
             d_metric = d.get("metric")
             
             if is_root_cause(d_comp):
