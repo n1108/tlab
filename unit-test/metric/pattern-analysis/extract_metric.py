@@ -79,28 +79,51 @@ def extract_metric(uuid, component, metric):
             return
 
         # 3. Filter Data
+        # Special Logic for APM metrics (e.g. rrt, rrt_max, error_ratio)
+        # APM files: apm/pod/pod_emailservice-2_2025-06-06.parquet
+        # MetricAgent loads these as: pod="emailservice-2", kpi_key="rrt", value=...
+        
+        # Check if the requested metric is one of the APM metrics that might need better prefix handling
+        # or if the component name is a prefix of the actual pod name in the dataframe
+        
         mask = (df["pod"] == component) & (df["kpi_key"] == metric)
         filtered_df = df[mask].copy()
         
         # If exact match fails, try prefix match for pod components (e.g. emailservice -> emailservice-0)
         if filtered_df.empty:
             logger.info(f"Exact match for component '{component}' failed. Trying prefix match...")
+            # Use startswith for Pod names (e.g., "emailservice" matches "emailservice-1")
             mask_prefix = (df["pod"].str.startswith(component + "-")) & (df["kpi_key"] == metric)
             filtered_df = df[mask_prefix].copy()
+            
+            # If still empty, try to see if component is already the full name but maybe metric is different?
+            # No, requirement is metric="rtt".
+            
             if not filtered_df.empty:
-                # If multiple pods match, we might need to aggregate or pick one.
-                # For visualization, maybe plot all? 
-                # But requirement says "component metric time series".
-                # Let's pick the first one found or allow plotting multiple lines?
-                # The text file format implies one validation series. 
-                # Let's aggregated by mean or just pick the first distinct pod.
                 unique_pods = filtered_df["pod"].unique()
-                logger.info(f"Found related pods: {unique_pods}. Selecting the first one: {unique_pods[0]}")
-                component = unique_pods[0]
+                # For APM metrics like 'rrt', we might have multiple pods.
+                # Heuristic: Pick the one with the most data or just the first one.
+                # Or better: Pick the one that actually HAS data for this metric (already filtered by kpi_key)
+                
+                # Sort pods to be deterministic
+                sorted_pods = sorted(unique_pods)
+                selected_pod = sorted_pods[0]
+                
+                logger.info(f"Found related pods: {sorted_pods}. Selecting: {selected_pod}")
+                component = selected_pod
                 filtered_df = filtered_df[filtered_df["pod"] == component]
 
         if filtered_df.empty:
+            # Fallback debug info
             logger.warning(f"No data found for component='{component}' (or derived) and metric='{metric}'.")
+            
+            if "kpi_key" in df.columns:
+                all_available_metrics = df["kpi_key"].unique()
+                if metric not in all_available_metrics:
+                    logger.warning(f"Metric '{metric}' does NOT exist in the loaded data. Did you mean one of these? {sorted(all_available_metrics)}")
+                else:
+                    avail_pods = df[df["kpi_key"] == metric]["pod"].unique()
+                    logger.warning(f"Metric '{metric}' exists, but not for component '{component}'. Pods with this metric: {avail_pods[:10]}...") 
             return
             
         # Sort by time
