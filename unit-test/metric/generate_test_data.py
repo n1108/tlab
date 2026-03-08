@@ -10,67 +10,6 @@ GT_PATH = "/home/tyt21/tlab/dataset/groundtruth.jsonl"
 OUTPUT_DIR = "/home/tyt21/tlab/unit-test/metric"
 OUTPUT_FILE = os.path.join(OUTPUT_DIR, "test_dataset.json")
 
-def infer_pattern(metric_name, fault_type, descriptions):
-    """
-    Infers the expected anomaly pattern.
-    Hierarchy:
-    1. Explicit Shape (e.g., 'spike') if metric context matches description.
-    2. Direction ('up'/'down') if general direction is known.
-    3. None if unknown.
-    """
-    desc_text = " ".join(descriptions).lower()
-    metric_simple = metric_name.lower()
-    fault_simple = fault_type.lower()
-    
-    # --- 1. Explicit Shape Matching (Metric Context + Keyword) ---
-    # Only assign specific shapes if the description strongly implies it for THIS metric type
-    
-    # CPU
-    if "cpu" in metric_simple:
-        if "cpu" in desc_text and "spike" in desc_text:
-            return "spike"
-    
-    # Memory
-    if "memory" in metric_simple:
-        if "memory" in desc_text and "leak" in desc_text:
-            return "level_shift_up"
-
-    # --- 2. Directional Inference (Up/Down) ---
-    
-    # Quality Metrics (Latency, Errors) -> Almost always UP is bad
-    if any(x in metric_simple for x in ["rrt", "error", "timeout", "latency", "delay"]):
-        return "up"
-    
-    # Resources (CPU/Mem/Processes) -> Depends on Fault Context
-    if any(x in metric_simple for x in ["cpu", "memory", "process"]):
-        # Down Events
-        is_down = any(x in desc_text or x in fault_simple for x in ["kill", "crash", "terminat", "down", "fail", "evict", "loss"])
-        if is_down:
-            return "down"
-        
-        # Up Events
-        is_up = any(x in desc_text or x in fault_simple for x in ["stress", "high", "leak", "saturation", "utilization", "spike"])
-        if is_up:
-            # Special logic for processes: 'stress' doesn't always mean processes go up
-            if "process" in metric_simple:
-                # only assume processes go up if explicit mention or specific types
-                if any(x in desc_text for x in ["process", "thread", "fork", "bomb"]) or "leak" in fault_simple:
-                    return "up"
-                return None
-            return "up"
-            
-    # Traffic (Packets/Bytes/Requests) -> Context Dependent
-    if any(x in metric_simple for x in ["byte", "packet", "request", "response"]):
-        # Attacks/Floods -> Up
-        if "attack" in fault_simple or "flood" in desc_text:
-            return "up"
-        # Loss/Failure/Drop -> Down
-        if "loss" in desc_text or "drop" in desc_text or "fail" in fault_simple or "kill" in fault_simple:
-            return "down"
-
-    # --- 3. Unknown ---
-    return None
-
 def load_json(path):
     print(f"Loading {path}...")
     try:
@@ -167,18 +106,8 @@ def main():
             "end_time": end_time,
             "fault_type": gt.get("fault_type", "unknown"),
             "root_cause_components": sorted(list(all_components)),
-            "expected_anomalies": []
+            "expected_anomalies": sorted(list(expected_metrics))
         }
-        
-        # Transform expected_metrics into patterns
-        for m in sorted(list(expected_metrics)):
-            descriptions = gt.get("fault_description", [])
-            fault_type = gt.get("fault_type", "unknown")
-            pat = infer_pattern(m, fault_type, descriptions)
-            test_case["expected_anomalies"].append({
-                "metric": m,
-                "pattern": pat
-            })
         
         test_cases.append(test_case)
         
@@ -190,3 +119,5 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+# python3 unit-test/metric/generate_test_data.py
