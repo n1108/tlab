@@ -58,8 +58,11 @@ def extract_metric(uuid, component, metric, extend_mins=0):
     end_time_str = target_case["end_time"]
     
     # Parse times (ensure naive or consistent timezone)
-    start_time = pd.to_datetime(start_time_str).replace(tzinfo=None) - pd.Timedelta(minutes=extend_mins)
-    end_time = pd.to_datetime(end_time_str).replace(tzinfo=None) + pd.Timedelta(minutes=extend_mins)
+    start_time_original = pd.to_datetime(start_time_str).replace(tzinfo=None)
+    end_time_original = pd.to_datetime(end_time_str).replace(tzinfo=None)
+    
+    start_time = start_time_original - pd.Timedelta(minutes=extend_mins)
+    end_time = end_time_original + pd.Timedelta(minutes=extend_mins)
     
     logger.info(f"Extracting {metric} for {component} (UUID: {uuid})")
     
@@ -163,6 +166,10 @@ def extract_metric(uuid, component, metric, extend_mins=0):
         miss_y = [v for v, m in zip(values, is_missing) if m]
         if miss_x:
             plt.scatter(miss_x, miss_y, color='red', marker='x', label="Missing (Filled 0)")
+
+        # Add vertical lines for fault window
+        plt.axvline(x=start_time_original, color='r', linestyle='--', label='Fault Start', alpha=0.8)
+        plt.axvline(x=end_time_original, color='r', linestyle='--', label='Fault End', alpha=0.8)
 
         plt.title(f"{metric} on {component}")
         plt.xlabel("Time")
