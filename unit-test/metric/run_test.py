@@ -155,9 +155,11 @@ def evaluate_accuracy(results, test_cases):
         
         # Expected metrics for this case (set of strings)
         expected_metrics = set()
-        for exp in case.get("expected_anomalies", []):
-            if exp.get("metric"):
-                expected_metrics.add(exp.get("metric"))
+        for x in case.get("expected_anomalies", []):
+            if isinstance(x, str):
+                expected_metrics.add(x)
+            elif isinstance(x, dict):
+                expected_metrics.add(x.get("metric"))
         
         detected_items = res.get("detected_anomalies", [])
         
@@ -177,16 +179,25 @@ def evaluate_accuracy(results, test_cases):
                 return False
 
         # --- Calculate Precision (Accuracy of Detections) ---
+        detected_on_root_cause = 0
+        correct_detected_on_root_cause = 0
+
         for d in detected_items:
-            total_detected_count += 1
             
             d_comp = d.get("component", [])
             d_metric = d.get("metric")
             
             if is_root_cause(d_comp):
-                # It is on a root cause component. Is it an expected metric?
+                detected_on_root_cause += 1
+                # It is on a root cause component. We count it as total detection ON ROOT CAUSE
+                
+                # Check if it was an expected metric
                 if d_metric in expected_metrics:
-                    correct_detected_count += 1
+                    correct_detected_on_root_cause += 1
+                    
+        # Update precision counters
+        total_detected_count += detected_on_root_cause
+        correct_detected_count += correct_detected_on_root_cause
 
         # --- Calculate Recall (Coverage of Expected Issues) ---
         total_expected_count += len(expected_metrics)
@@ -228,3 +239,5 @@ if __name__ == "__main__":
     args = parser.parse_args()
     
     run_tests(limit=args.limit)
+
+# python3 unit-test/metric/run_test.py --limit 5
