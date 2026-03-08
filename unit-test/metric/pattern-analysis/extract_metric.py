@@ -25,7 +25,7 @@ sys.path.append(str(workspace_root))
 
 from exp.agent.metric import MetricAgent
 
-def extract_metric(uuid, component, metric):
+def extract_metric(uuid, component, metric, extend_mins=0):
     # Paths
     test_data_path = workspace_root / "unit-test/metric/test_dataset.json"
     dataset_root = workspace_root / "dataset"
@@ -58,8 +58,8 @@ def extract_metric(uuid, component, metric):
     end_time_str = target_case["end_time"]
     
     # Parse times (ensure naive or consistent timezone)
-    start_time = pd.to_datetime(start_time_str).replace(tzinfo=None)
-    end_time = pd.to_datetime(end_time_str).replace(tzinfo=None)
+    start_time = pd.to_datetime(start_time_str).replace(tzinfo=None) - pd.Timedelta(minutes=extend_mins)
+    end_time = pd.to_datetime(end_time_str).replace(tzinfo=None) + pd.Timedelta(minutes=extend_mins)
     
     logger.info(f"Extracting {metric} for {component} (UUID: {uuid})")
     
@@ -173,9 +173,12 @@ if __name__ == "__main__":
     parser.add_argument("--uuid", type=str, default="345fbe93-80", help="Failure Case UUID")
     parser.add_argument("--component", type=str, default="emailservice", help="Component Name (Pod/Node)")
     parser.add_argument("--metric", type=str, default="pod_cpu_usage", help="Metric Name")
+    parser.add_argument("--extend", type=int, default=0, help="Extend time window (minutes) before and after")
     
     args = parser.parse_args()
     
-    extract_metric(args.uuid, args.component, args.metric)
+    extract_metric(args.uuid, args.component, args.metric, extend_mins=args.extend)
 
 # python3 extract_metric.py --uuid=345fbe93-80 --component=emailservice --metric=pod_cpu_usage
+# 特殊情况：pod 故障导致数据缺失，需要绘制前后30分钟的图像
+# python3 extract_metric.py --uuid=38ee3d45-82 --component=cartservice --metric=pod_cpu_usage --extend 30
