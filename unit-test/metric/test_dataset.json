@@ -51,12 +51,12 @@
             "client_error_ratio",
             "error",
             "error_ratio",
-            "error_ratiopod_processes",
             "pod_cpu_usage",
             "pod_network_receive_bytes",
             "pod_network_receive_packets",
             "pod_network_transmit_bytes",
             "pod_network_transmit_packets",
+            "pod_processes",
             "request",
             "response"
         ]
@@ -314,12 +314,13 @@
             "client_error",
             "client_error_ratio",
             "error",
-            "error_ratiopod_processes",
+            "error_ratio",
             "pod_memory_working_set_bytes",
             "pod_network_receive_bytes",
             "pod_network_receive_packets",
             "pod_network_transmit_bytes",
             "pod_network_transmit_packets",
+            "pod_processes",
             "request",
             "response"
         ]
@@ -549,13 +550,14 @@
             "client_error",
             "client_error_ratio",
             "error",
-            "error_ratiopod_processes",
+            "error_ratio",
             "pod_fs_writes_bytes",
             "pod_memory_working_set_bytes",
             "pod_network_receive_bytes",
             "pod_network_receive_packets",
             "pod_network_transmit_bytes",
             "pod_network_transmit_packets",
+            "pod_processes",
             "request",
             "response"
         ]
@@ -961,12 +963,13 @@
             "client_error",
             "client_error_ratio",
             "error",
-            "error_ratiopod_processes",
+            "error_ratio",
             "pod_memory_working_set_bytes",
             "pod_network_receive_bytes",
             "pod_network_receive_packets",
             "pod_network_transmit_bytes",
             "pod_network_transmit_packets",
+            "pod_processes",
             "request",
             "response"
         ]
@@ -985,12 +988,12 @@
             "client_error_ratio",
             "error",
             "error_ratio",
-            "error_ratiopod_processes",
             "pod_memory_working_set_bytes",
             "pod_network_receive_bytes",
             "pod_network_receive_packets",
             "pod_network_transmit_bytes",
             "pod_network_transmit_packets",
+            "pod_processes",
             "request",
             "response"
         ]
@@ -1172,13 +1175,14 @@
             "client_error",
             "client_error_ratio",
             "error",
-            "error_ratiopod_processes",
+            "error_ratio",
             "pod_cpu_usage",
             "pod_memory_working_set_bytes",
             "pod_network_receive_bytes",
             "pod_network_receive_packets",
             "pod_network_transmit_bytes",
             "pod_network_transmit_packets",
+            "pod_processes",
             "request",
             "response"
         ]
@@ -1859,12 +1863,12 @@
             "client_error_ratio",
             "error",
             "error_ratio",
-            "error_ratiopod_processes",
             "pod_memory_working_set_bytes",
             "pod_network_receive_bytes",
             "pod_network_receive_packets",
             "pod_network_transmit_bytes",
             "pod_network_transmit_packets",
+            "pod_processes",
             "request",
             "response"
         ]
@@ -1919,12 +1923,12 @@
             "client_error_ratio",
             "error",
             "error_ratio",
-            "error_ratiopod_processes",
             "pod_memory_working_set_bytes",
             "pod_network_receive_bytes",
             "pod_network_receive_packets",
             "pod_network_transmit_bytes",
             "pod_network_transmit_packets",
+            "pod_processes",
             "request",
             "response"
         ]
@@ -2150,11 +2154,11 @@
             "client_error_ratio",
             "error",
             "error_ratio",
-            "error_ratiopod_processes",
             "pod_network_receive_bytes",
             "pod_network_receive_packets",
             "pod_network_transmit_bytes",
             "pod_network_transmit_packets",
+            "pod_processes",
             "request",
             "response"
         ]
@@ -2584,11 +2588,11 @@
             "client_error_ratio",
             "error",
             "error_ratio",
-            "error_ratiopod_processes",
             "pod_network_receive_bytes",
             "pod_network_receive_packets",
             "pod_network_transmit_bytes",
             "pod_network_transmit_packets",
+            "pod_processes",
             "request",
             "response"
         ]
@@ -2790,12 +2794,13 @@
             "client_error",
             "client_error_ratio",
             "error",
-            "error_ratiopod_processes",
+            "error_ratio",
             "pod_memory_working_set_bytes",
             "pod_network_receive_bytes",
             "pod_network_receive_packets",
             "pod_network_transmit_bytes",
             "pod_network_transmit_packets",
+            "pod_processes",
             "request",
             "response"
         ]
@@ -2824,13 +2829,14 @@
             "client_error",
             "client_error_ratio",
             "error",
-            "error_ratiopod_processes",
+            "error_ratio",
             "pod_cpu_usage",
             "pod_memory_working_set_bytes",
             "pod_network_receive_bytes",
             "pod_network_receive_packets",
             "pod_network_transmit_bytes",
             "pod_network_transmit_packets",
+            "pod_processes",
             "request",
             "response"
         ]
@@ -3063,7 +3069,6 @@
             "client_error_ratio",
             "error",
             "error_ratio",
-            "error_ratiopod_processes",
             "pod_cpu_usage",
             "pod_fs_writes_bytes",
             "pod_memory_working_set_bytes",
@@ -3071,6 +3076,7 @@
             "pod_network_receive_packets",
             "pod_network_transmit_bytes",
             "pod_network_transmit_packets",
+            "pod_processes",
             "request",
             "response"
         ]
@@ -3133,12 +3139,12 @@
             "client_error_ratio",
             "error",
             "error_ratio",
-            "error_ratiopod_processes",
             "pod_memory_working_set_bytes",
             "pod_network_receive_bytes",
             "pod_network_receive_packets",
             "pod_network_transmit_bytes",
             "pod_network_transmit_packets",
+            "pod_processes",
             "request",
             "response"
         ]
@@ -3171,7 +3177,6 @@
             "client_error_ratio",
             "error",
             "error_ratio",
-            "error_ratiopod_processes",
             "pod_cpu_usage",
             "pod_fs_writes_bytes",
             "pod_memory_working_set_bytes",
@@ -3179,6 +3184,7 @@
             "pod_network_receive_packets",
             "pod_network_transmit_bytes",
             "pod_network_transmit_packets",
+            "pod_processes",
             "request",
             "response"
         ]
@@ -3456,13 +3462,13 @@
             "client_error_ratio",
             "error",
             "error_ratio",
-            "error_ratiopod_processes",
             "pod_cpu_usage",
             "pod_memory_working_set_bytes",
             "pod_network_receive_bytes",
             "pod_network_receive_packets",
             "pod_network_transmit_bytes",
             "pod_network_transmit_packets",
+            "pod_processes",
             "request",
             "response"
         ]
@@ -3529,11 +3535,11 @@
             "client_error_ratio",
             "error",
             "error_ratio",
-            "error_ratiopod_processes",
             "pod_network_receive_bytes",
             "pod_network_receive_packets",
             "pod_network_transmit_bytes",
             "pod_network_transmit_packets",
+            "pod_processes",
             "request",
             "response"
         ]
@@ -3587,12 +3593,13 @@
             "client_error",
             "client_error_ratio",
             "error",
-            "error_ratiopod_processes",
+            "error_ratio",
             "pod_memory_working_set_bytes",
             "pod_network_receive_bytes",
             "pod_network_receive_packets",
             "pod_network_transmit_bytes",
             "pod_network_transmit_packets",
+            "pod_processes",
             "request",
             "response"
         ]

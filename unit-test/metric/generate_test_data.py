@@ -75,10 +75,18 @@ def main():
         # Extract expected metrics (The 'Answer')
         expected_metrics = set()
         
+        # Helper to safely add metrics and fix known typos
+        def safe_add_metric(m):
+            if m == "error_ratiopod_processes":
+                expected_metrics.add("error_ratio")
+                expected_metrics.add("pod_processes")
+            else:
+                expected_metrics.add(m)
+
         # 1. From 'key_metrics' field
         if "key_metrics" in gt:
             for m in gt["key_metrics"]:
-                expected_metrics.add(m)
+                safe_add_metric(m)
                 
         # 2. From 'key_observations' field where type is 'metric'
         if "key_observations" in gt:
@@ -88,9 +96,9 @@ def main():
                     keywords = obs.get("keyword", [])
                     if isinstance(keywords, list):
                         for k in keywords:
-                            expected_metrics.add(k)
+                            safe_add_metric(k)
                     elif isinstance(keywords, str):
-                        expected_metrics.add(keywords)
+                        safe_add_metric(keywords)
 
         # Construct the test case object
         # Deduplicate components and filter out empty strings
