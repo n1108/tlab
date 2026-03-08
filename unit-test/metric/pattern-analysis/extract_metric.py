@@ -129,13 +129,17 @@ def extract_metric(uuid, component, metric, extend_mins=0):
         # Sort by time
         filtered_df.sort_values("time", inplace=True)
         
-        values = filtered_df["value"].tolist()
-        # Convert timestamps to string for serialization if needed, or keep as is
-        # The prompt says "uuid, component, metric, [value1, value2...]"
-        # It doesn't ask for timestamps in the text file, but for plotting it's needed.
+        # Resample to 1 minute
+        resampled_df = filtered_df.set_index("time").resample("1min").max()
+        is_missing = resampled_df["value"].isna().tolist()
+        
+        # Fill missing values with 0
+        filled_df = resampled_df.fillna(0).reset_index()
+        
+        values = filled_df["value"].tolist()
+        timestamps = filled_df["time"].tolist()
         
         # 4. Save to text file
-        # Format: uuid, component, metric, [value1, value2, value3, ...]
         line_content = f"{uuid}, {component}, {metric}, {values}\n"
         
         with open(str(output_file), "a") as f:
@@ -144,10 +148,22 @@ def extract_metric(uuid, component, metric, extend_mins=0):
         logger.info(f"Saved series data to {output_file}")
         
         # 5. Plot Line Chart
-        timestamps = filtered_df["time"].tolist()
-        
         plt.figure(figsize=(10, 6))
-        plt.plot(timestamps, values, marker='.', linestyle='-', label=f"{component} {metric}")
+        
+        # Plot continuous line (gray background)
+        plt.plot(timestamps, values, linestyle='-', color='gray', alpha=0.5, label="Trend")
+        
+        # Plot Observed Data (Blue Dots)
+        obs_x = [t for t, m in zip(timestamps, is_missing) if not m]
+        obs_y = [v for v, m in zip(values, is_missing) if not m]
+        plt.scatter(obs_x, obs_y, color='blue', marker='.', label="Observed")
+        
+        # Plot Missing Data (Red Xs)
+        miss_x = [t for t, m in zip(timestamps, is_missing) if m]
+        miss_y = [v for v, m in zip(values, is_missing) if m]
+        if miss_x:
+            plt.scatter(miss_x, miss_y, color='red', marker='x', label="Missing (Filled 0)")
+
         plt.title(f"{metric} on {component}")
         plt.xlabel("Time")
         plt.ylabel("Value")
