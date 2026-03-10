@@ -14,13 +14,21 @@ logger = logging.getLogger(__name__)
 workspace_root = Path(__file__).resolve().parents[2]
 sys.path.append(str(workspace_root))
 
-from exp.agent.metric import MetricAgent
+# Add baseline directory to sys.path
+sys.path.append(str(workspace_root / "unit-test/metric/baselines"))
 
-def run_tests(limit=None):
+from exp.agent.metric import MetricAgent
+from rule_based import RuleBasedMetricAgent
+
+def run_tests(limit=None, method="metric-agent"):
     # Define paths
     test_data_path = workspace_root / "unit-test/metric/test_dataset.json"
     result_dir = workspace_root / "unit-test/metric/results"
-    result_file = result_dir / "predictions.json"
+    
+    # Choose output file based on method (optional, good practice)
+    prediction_filename = "predictions_rule_based.json" if method == "rule-based" else "predictions.json"
+    result_file = result_dir / prediction_filename
+    
     dataset_root = workspace_root / "dataset"
     
     # Ensure result directory exists
@@ -40,8 +48,13 @@ def run_tests(limit=None):
         
     print(f"Loaded {len(test_cases)} test cases.")
     
-    # Initialize MetricAgent
-    agent = MetricAgent(root_path=str(dataset_root))
+    # Initialize Agent
+    if method == "rule-based":
+        print("Using RuleBasedMetricAgent")
+        agent = RuleBasedMetricAgent(root_path=str(dataset_root))
+    else:
+        print("Using MetricAgent (default)")
+        agent = MetricAgent(root_path=str(dataset_root))
     
     results = []
     
@@ -129,19 +142,16 @@ def run_tests(limit=None):
 def evaluate_accuracy(results, test_cases):
     """
     Calculate Precision and Recall.
-    Ignore anomaly pattern/morphology. Only check if the specific metric on the root cause component was detected.
-    
-    Recall = (Expected Metrics Detected on Root Cause) / (Total Expected Metrics on Root Cause)
-    Precision = (Detected Metrics on Root Cause matching Expected) / (Total Detected Metrics)
+    Strict Mode:
+     - Unit of measurement: (Metric, Component) pair.
+     - Precision Denominator: Total unique (Metric, Component) pairs detected (including non-root-cause components).
+     - Recall Denominator: Total predicted (Metric, RootCause) pairs (assuming Cross Product of Expected Metrics * Root Causes).
     """
     print("\nStarting Evaluation...")
     
-    # Global counts
     total_expected_count = 0 
-    correctly_detected_expected_count = 0  # Recall Numerator
-    
     total_detected_count = 0
-    correct_detected_count = 0   # Precision Numerator
+    correct_detected_count = 0   # Intersection
     
     test_case_map = {case["uuid"]: case for case in test_cases}
     
@@ -153,7 +163,7 @@ def evaluate_accuracy(results, test_cases):
         case = test_case_map[uuid]
         root_causes = set(case.get("root_cause_components", []))
         
-        # Expected metrics for this case (set of strings)
+        # 1. Parse Expected Metrics
         expected_metrics = set()
         for x in case.get("expected_anomalies", []):
             if isinstance(x, str):
@@ -161,72 +171,55 @@ def evaluate_accuracy(results, test_cases):
             elif isinstance(x, dict):
                 expected_metrics.add(x.get("metric"))
         
+        # Flatten Expected Set: {(metric, rc_component)}
+        # We assume every expected metric applies to every root cause component
+        expected_set = set()
+        for rc in root_causes:
+            for m in expected_metrics:
+                expected_set.add((m, rc))
+                
+        # 2. Parse Detected Metrics
         detected_items = res.get("detected_anomalies", [])
+        detected_set = set()
         
-        # Helper to check if a component is a root cause or a pod of it
-        def is_root_cause(comp_name_or_list):
-            if isinstance(comp_name_or_list, list):
-                for comp_name in comp_name_or_list:
-                    for rc in root_causes:
-                        if comp_name == rc or comp_name.startswith(rc + "-"):
-                            return True
-                return False
-            else:
-                comp_name = comp_name_or_list
+        for item in detected_items:
+            metric = item.get("metric")
+            components = item.get("component", []) # This is a list
+            if isinstance(components, str): 
+                components = [components]
+                
+            for comp in components:
+                # Map detected component to root cause if possible
+                matched_rc = None
                 for rc in root_causes:
-                    if comp_name == rc or comp_name.startswith(rc + "-"):
-                        return True
-                return False
-
-        # --- Calculate Precision (Accuracy of Detections) ---
-        detected_on_root_cause = 0
-        correct_detected_on_root_cause = 0
-
-        for d in detected_items:
-            
-            d_comp = d.get("component", [])
-            d_metric = d.get("metric")
-            
-            if is_root_cause(d_comp):
-                detected_on_root_cause += 1
-                # It is on a root cause component. We count it as total detection ON ROOT CAUSE
+                    # Match exact or prefix (e.g. "cartservice-0" -> "cartservice")
+                    if comp == rc or comp.startswith(rc + "-"):
+                        matched_rc = rc
+                        break
                 
-                # Check if it was an expected metric
-                if d_metric in expected_metrics:
-                    correct_detected_on_root_cause += 1
-                    
-        # Update precision counters
-        total_detected_count += detected_on_root_cause
-        correct_detected_count += correct_detected_on_root_cause
-
-        # --- Calculate Recall (Coverage of Expected Issues) ---
-        total_expected_count += len(expected_metrics)
+                if matched_rc:
+                    detected_set.add((metric, matched_rc))
+                else:
+                    detected_set.add((metric, comp))
         
-        for exp_metric in expected_metrics:
-            # Did we find this metric on ANY valid root cause component?
-            found = False
-            for d in detected_items:
-                d_comp = d.get("component", "")
-                d_metric = d.get("metric")
-                
-                if d_metric == exp_metric and is_root_cause(d_comp):
-                    found = True
-                    break
-            
-            if found:
-                correctly_detected_expected_count += 1
+        # 3. Calculate Stats for this Case
+        correct_set = expected_set.intersection(detected_set)
+        
+        total_expected_count += len(expected_set)
+        total_detected_count += len(detected_set)
+        correct_detected_count += len(correct_set)
 
     # Final Metrics
-    recall = (correctly_detected_expected_count / total_expected_count * 100) if total_expected_count > 0 else 0.0
+    recall = (correct_detected_count / total_expected_count * 100) if total_expected_count > 0 else 0.0
     precision = (correct_detected_count / total_detected_count * 100) if total_detected_count > 0 else 0.0
     f1 = (2 * precision * recall / (precision + recall)) if (precision + recall) > 0 else 0.0
     
     print(f"Evaluation Results:")
-    print(f"Total Detected Anomalies: {total_detected_count}")
-    print(f"  - Correct (Precision Numerator): {correct_detected_count}")
+    print(f"Total Detected Anomalies (Metric-Component Pairs): {total_detected_count}")
+    print(f"  - Correct: {correct_detected_count}")
     print(f"  - Precision: {precision:.2f}%") 
-    print(f"Total Expected Anomalies (Types per case): {total_expected_count}")
-    print(f"  - Detected (Recall Numerator): {correctly_detected_expected_count}")
+    print(f"Total Expected Anomalies (Metric-RC Pairs): {total_expected_count}")
+    print(f"  - Recalled: {correct_detected_count}")
     print(f"  - Recall: {recall:.2f}%")
     print(f"F1 Score: {f1:.2f}")
 
@@ -236,8 +229,9 @@ def evaluate_accuracy(results, test_cases):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--limit", type=int, default=None, help="Number of test cases to run")
+    parser.add_argument("--method", type=str, default="metric-agent", choices=["metric-agent", "rule-based"], help="Anomaly detection method to use")
     args = parser.parse_args()
     
-    run_tests(limit=args.limit)
+    run_tests(limit=args.limit, method=args.method)
 
 # python3 unit-test/metric/run_test.py --limit 5
