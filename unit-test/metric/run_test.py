@@ -234,4 +234,4 @@ if __name__ == "__main__":
     
     run_tests(limit=args.limit, method=args.method)
 
-# python3 unit-test/metric/run_test.py --limit 5
+# python3 unit-test/metric/run_test.py --limit 5 --method rule-based

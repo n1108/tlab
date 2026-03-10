@@ -4,7 +4,7 @@ import numpy as np
 import sys
 from pathlib import Path
 
-# Add workspace root to sys.path to import exp.agent.metric
+# Add workspace root to sys.path
 workspace_root = Path(__file__).resolve().parents[3]
 sys.path.append(str(workspace_root))
 
@@ -14,225 +14,174 @@ logger = logging.getLogger(__name__)
 
 class RuleBasedMetricAgent(MetricAgent):
     """
-    Rule-based metric anomaly detection baselines.
-    Implements specific heuristic rules based on observed patterns in test cases.
+    Rule-based metric anomaly detection (Dynamic Semantic Version).
+    
+    Philosophy:
+    - Anomalies are relative (Spatial or Temporal), not absolute numbers.
+    - Spatial: "I am significantly different from my peers." (e.g., CPU Stress, Net Drop)
+    - Temporal: "I have changed significantly from my past." (e.g., Node Memory Spike)
     """
     
     def __init__(self, root_path):
         super().__init__(root_path)
 
+    def _calculate_spatial_stats(self, df_pivot):
+        """
+        Calculate robust spatial statistics: Median and MAD (Median Absolute Deviation).
+        """
+        if df_pivot.shape[1] < 2:
+            return None, None
+            
+        median = df_pivot.median(axis=1)
+        # MAD = median(|x - median|)
+        # Constant 1.4826 makes MAD consistent with StdDev for normal distribution
+        mad = (df_pivot.sub(median, axis=0)).abs().median(axis=1) * 1.4826
+        return median, mad
+
     def _detect_pattern_type(self, series, anomaly_mask):
-        """
-        Classify the anomaly pattern based on shape.
-        types: spike, drop, level_shift_up, level_shift_down, surge, dip
-        """
-        if not anomaly_mask.any():
-            return None
-            
-        anom_indices = np.where(anomaly_mask)[0]
-        if len(anom_indices) == 0:
-            return None
-            
-        # Get values
-        anom_values = series.iloc[anom_indices]
-        normal_mask = ~anomaly_mask
-        if normal_mask.any():
-            baseline = series[normal_mask].median()
-            if np.isnan(baseline): baseline = 0
+        """Analyze the shape of the anomaly."""
+        if not anomaly_mask.any(): return None
+        
+        # Simple shape detection
+        anom_vals = series[anomaly_mask]
+        duration = len(anom_vals)
+        
+        if duration <= 2:
+            return "spike"
+        elif duration > len(series) * 0.8:
+            anom_mean = anom_vals.mean()
+            # If mask is mostly true, compare to non-existent baseline? 
+            # Assume trend.
+            return "level_shift"
         else:
-            baseline = 0 # Fallback
-            
-        mean_anom = anom_values.mean()
-        is_high = mean_anom > baseline
-        
-        # Check duration
-        duration = len(anom_indices)
-        total_len = len(series)
-        
-        # Check position (start, end)
-        starts_at_end = anom_indices[-1] == (total_len - 1)
-        
-        if is_high:
-            if duration <= 2:
-                return "spike"
-            elif starts_at_end:
-                 return "level_shift_up"
-            else:
-                return "surge"
-        else:
-            if duration <= 2:
-                return "drop"
-            elif starts_at_end:
-                return "level_shift_down"
-            else:
-                return "dip"
+             return "surge" 
 
     def query_metrics(self, start_time, end_time):
-        # Extend window by 10 mins to catch edge cases and context
         adj_start = start_time - pd.Timedelta(minutes=10)
         adj_end = end_time + pd.Timedelta(minutes=10)
         
-        # Load data
         df = self.load_data(adj_start, adj_end)
-        
-        if df.empty:
-            return {"observation": "No data", "events": []}
+        if df.empty: return {"observation": "No data", "events": []}
             
         events = []
         
-        # Group by KPI to process cross-component logic where applicable, or just efficient iteration
-        # pivot: index=time, columns=pod, values=value
         for kpi, kpi_df in df.groupby("kpi_key"):
-            
-            # Pivot
             try:
+                # pivot and resample
+                kpi_df['value'] = pd.to_numeric(kpi_df['value'], errors='coerce')
                 pivoted = kpi_df.pivot_table(index="time", columns="pod", values="value", aggfunc='max')
-            except Exception:
-                continue
+                pivoted = pivoted.resample('1min').max() # 1min Granularity
                 
-            # Resample to 1min to align and expose missing data
-            # Use 'max' for resampling to preserve spikes
-            pivoted = pivoted.resample('1min').max()
+                if pivoted.empty: continue
+            except Exception: continue
             
-            # Slice to the requested detection window (plus maybe 1-2 mins context if needed for boundary checks)
-            # But strictly we should detect anomalies falling into the requested window.
-            # However, for "missing data", we need to check if it's missing INSIDE the window.
+            # --- 1. Spatial Analysis (Cross-Component) ---
+            spatial_median, spatial_mad = self._calculate_spatial_stats(pivoted)
             
-            # Analyze each component
             for pod in pivoted.columns:
                 series_full = pivoted[pod]
-                
-                # Slice to strict window for reporting
-                series_window = series_full.loc[start_time:end_time]
-                
-                # --- Rule 1: Missing Data (Testcase 3) ---
-                if series_window.isna().any():
-                     # Only report if it's not empty (completely missing vs partially missing)
-                     # If the pod completely doesn't exist in time range, it might just be not running. 
-                     # But here we have columns, so it existed at some point in the extended window.
-                     mask = series_window.isna()
-                     timestamps = series_window.index[mask].astype(str).tolist()
-                     events.append({
-                         "pod": pod, "kpi": kpi, "pattern": "missing", "timestamps": timestamps
-                     })
-                     # Fill NaNs for further checks (fill with 0 usually safe for metrics like error/request)
-                     series_window = series_window.fillna(0)
+                try:
+                    # Target window
+                    series_window = series_full.loc[start_time:end_time]
+                except KeyError: continue
                 
                 if series_window.empty: continue
-                
-                # Prepare baseline (median of the series itself in extended window or cross-component)
-                # Cross-component baseline
-                others = pivoted.drop(columns=[pod], errors='ignore')
-                if not others.empty:
-                    spatial_median = others.median(axis=1).loc[start_time:end_time]
-                else:
-                    spatial_median = None
-
                 anomaly_mask = np.zeros(len(series_window), dtype=bool)
+                pattern_name = None
                 
-                # --- Rule 2: Error Metrics (Testcase 2, 3) ---
+                # --- Strategy A: Missing Data ---
+                if series_window.isna().any():
+                     # If it's a critical resource metric
+                     if any(x in kpi for x in ['cpu', 'memory', 'disk', 'net', 'request']):
+                         events.append({
+                             "pod": pod, "kpi": kpi, "pattern": "missing",
+                             "timestamps": series_window.index[series_window.isna()].astype(str).tolist()
+                         })
+                     series_window = series_window.fillna(0)
+
+                # --- Strategy B: Absolute Errors (Domain Knowledge) ---
+                # Errors are always bad. No relative logic needed.
                 if any(x in kpi for x in ['error', 'fail']):
-                    # Threshold > 0
-                    anomaly_mask = series_window > 0
-                    
-                # --- Rule 3: Pod Process (Testcase 1) ---
-                elif kpi == 'pod_processes':
-                    # Threshold > 5 (Normal is 1)
-                    anomaly_mask = series_window > 5
-                    
-                # --- Rule 4: Pod CPU (Testcase 1) ---
-                elif kpi == 'pod_cpu_usage':
-                    # Threshold > 0.2 (User said 0.4 anomaly vs 0.02 normal)
-                    anomaly_mask = series_window > 0.2
-                    
-                # --- Rule 5: Node Memory Usage (Testcase 4) ---
-                elif kpi == 'node_memory_usage_rate':
-                    # Spike > 50 (Normal 22, Anomaly 68)
-                    anomaly_mask = series_window > 50
-                    
-                # --- Rule 6: Node Memory Available (Testcase 4) ---
-                elif kpi == 'node_memory_MemAvailable_bytes':
-                    # Dip < 20 GB (Normal 26GB, Anomaly 10GB)
-                    # 20 GB = 2e10
-                    anomaly_mask = series_window < 2.0e10
-                    
-                # --- Rule 7: Network Bytes/Packets Drop to 0 (Testcase 2, 5) ---
-                elif 'network' in kpi and ('bytes' in kpi or 'packets' in kpi):
-                    # Check for drop to 0. 
-                    # Only if baseline was not 0? 
-                    # Simple heuristic: strictly 0 is suspicious if it wasn't 0 before.
-                    # Or compare to cross-component?
-                    # User says "Normal components fluctuate, abnormal is 0".
-                    # Let's use Cross-Component Contrast: Self is 0 AND Others > 0.
-                    if spatial_median is not None:
-                        # If self is 0 and median of others is significant (> 100 bytes/packets)
-                        is_zero = series_window <= 1e-6
-                        others_active = spatial_median > 100
-                        anomaly_mask = is_zero & others_active
-                    else:
-                        # Fallback: just check for 0 if max > 100 (it was active)
-                        if series_full.max() > 100:
-                            anomaly_mask = series_window <= 1e-6
-                            
-                # --- Rule 8: RRT / Latency (Testcase 1, 2, 5) ---
-                elif 'rrt' in kpi or 'latency' in kpi:
-                    # Massive increase.
-                    # Testcase 1: 30000 vs 3000.
-                    # Testcase 2: 3 orders of magnitude.
-                    # Rule: Value > 5 * spatial_median (if available) OR Value > 3 * self_median
-                    if spatial_median is not None:
-                        # Avoid div by zero
-                        safe_median = spatial_median.replace(0, 1) # assuming ms/us
-                        ratio = series_window / safe_median
-                        anomaly_mask = ratio > 5
-                    else:
-                        # Self comparison
-                        self_median = series_full.median()
-                        if self_median > 0:
-                            anomaly_mask = series_window > (self_median * 5)
-                            
-                # --- Rule 9: Request/Response (Throughput) (Testcase 2, 5) ---
-                elif kpi in ['request', 'response', 'qps']:
-                    if spatial_median is not None:
-                        # Compare deviations? Hard because different services have different loads.
-                        # Better to match temporal change: Spike or Drop.
-                        # Use Z-Score on self_history (extended window)
-                        
-                        # Calculate rolling stats on full series to get context
-                        rolling_mean = series_full.rolling(window=10, min_periods=1, center=True).mean()
-                        rolling_std = series_full.rolling(window=10, min_periods=1, center=True).std()
-                        
-                        # Align to window
-                        mu = rolling_mean.loc[start_time:end_time]
-                        sig = rolling_std.loc[start_time:end_time]
-                        
-                        # Threshold: 3 sigma
-                        z_score = (series_window - mu) / (sig + 1e-6) # avoid div 0
-                        
-                        anomaly_mask = z_score.abs() > 3
-                        
-                        # Refinement for Testcase 2 (Spike 80->400) -> Z score approx (400-80)/std. High.
-                        # Refinement for Testcase 5 (Drop) -> Z score negative.
+                     mask = series_window > 0
+                     if mask.any():
+                         anomaly_mask |= mask
+                         pattern_name = "error"
 
-                # --- Final: Classify and Report ---
+                # --- Strategy C: Spatial Outlier (The "High Contrast" Logic) ---
+                # Used for: CPU Stress, High Latency, High Process Count
+                # Logic: Current Value > Median + 3 * MAD (Robust Z-Score > 3)
+                elif spatial_median is not None:
+                     # Align stats to window
+                     med = spatial_median.reindex(series_window.index).fillna(0)
+                     mad_val = spatial_mad.reindex(series_window.index).fillna(0).replace(0, 1e-6) # prevent div0
+                     
+                     # Calculate Robust Z-Score (Modified Z-Score)
+                     # diff = series_window - med
+                     # mod_z = 0.6745 * diff / mad (approx) -> Let's use standard deviation scale
+                     # We scaled MAD by 1.4826 already, so it acts like Sigma.
+                     
+                     dev = series_window - med
+                     z_spatial = dev / mad_val
+                     
+                     # Threshold: 3.5 Sigma is strong outlier
+                     # Also add a "Min Difference" check to avoid noise amplification (e.g. 0.001 vs 0.002)
+                     # Min diff: 1.0 for large numbers, 0.05 for small ratios like CPU?
+                     # A generic way is: Ratio > 3x AND Z > 3
+                     
+                     # 1. High Outlier (Stress/Spike)
+                     mask_high = (z_spatial > 3.0) & (series_window > med * 2) & (series_window > 0.05)
+                     if mask_high.any():
+                         anomaly_mask |= mask_high
+                         pattern_name = "cross-component contrast"
+
+                     # 2. Low Outlier (Drop/Dead)
+                     # Used for: Network Drop, Memory Available Drop
+                     # Logic: Value is near 0, while Median is healthy
+                     # E.g. Net Drop: Val < 1, Median > 100
+                     mask_low = (series_window < med * 0.1) & (med > 0.1) & (series_window < 1.0)
+                     # Special handler for large numbers (Bytes) vs small (CPU)
+                     # For network bytes (usually > 1000):
+                     if 'byte' in kpi or 'packet' in kpi:
+                          mask_low = (series_window < 10) & (med > 100)
+                     
+                     if mask_low.any():
+                         anomaly_mask |= mask_low
+                         pattern_name = "drop" # or cross-component contrast
+
+                # --- Strategy D: Temporal Outlier (Self-Z-Score) ---
+                # Used for: Node Memory (Singleton), Global Issues (All pods spike)
+                # If Spatial failed (only 1 pod, or all pods bad)
+                if not anomaly_mask.any():
+                     rolling_mean = series_full.rolling(window=20, min_periods=1, center=True).mean()
+                     rolling_std = series_full.rolling(window=20, min_periods=1, center=True).std()
+                     mu = rolling_mean.loc[start_time:end_time]
+                     sig = rolling_std.loc[start_time:end_time].replace(0, 1e-6)
+                     
+                     z_temporal = (series_window - mu) / sig
+                     
+                     # Temporal Spike (e.g. Memory Leak)
+                     if (z_temporal > 3.0).any(): 
+                         # Filter minor noise
+                         if (series_window.mean() > 0.1): # Don't flag 0->0.01 spikes
+                             anomaly_mask |= (z_temporal > 3.0)
+                             pattern_name = "spike" # or surge/level_shift
+                     
+                     # Temporal Drop
+                     if (z_temporal < -3.0).any():
+                          mask_drop = (z_temporal < -3.0)
+                          if mask_drop.any():
+                              anomaly_mask |= mask_drop
+                              pattern_name = "drop"
+
+                # --- Reporting ---
                 if anomaly_mask.any():
-                    pattern = self._detect_pattern_type(series_window, anomaly_mask)
-                    if pattern:
-                        # Additional Check: Cross Component Contrast (as requested pattern name)
-                        # If the anomaly is defined by difference from others, we can tag it.
-                        # But user listed it as a pattern name. 
-                        # Only add if we used spatial logic? Let's just stick to shape patterns (+ missing)
+                    # Fallback pattern name analysis
+                    if not pattern_name:
+                        pattern_name = self._detect_pattern_type(series_window, anomaly_mask)
                         
-                        # Filter timestamps
-                        timestamps = series_window.index[anomaly_mask].astype(str).tolist()
-                        events.append({
-                            "pod": pod,
-                            "kpi": kpi,
-                            "pattern": pattern,
-                            "timestamps": timestamps
-                        })
+                    events.append({
+                        "pod": pod, "kpi": kpi, "pattern": pattern_name or "anomaly",
+                        "timestamps": series_window.index[anomaly_mask].astype(str).tolist()
+                    })
 
-        return {
-            "observation": "Rule-based analysis completed.",
-            "events": events
-        }
+        return {"observation": "Dynamic rule-based analysis.", "events": events}
