@@ -202,6 +202,6 @@ if __name__ == "__main__":
     
     extract_metric(args.uuid, args.component, args.metric, extend_mins=args.extend)
 
-# python3 extract_metric.py --uuid=345fbe93-80 --component=emailservice --metric=pod_cpu_usage
+# python3 unit-test/metric/pattern-analysis/extract_metric.py --uuid=345fbe93-80 --component=emailservice --metric=pod_cpu_usage
 # 特殊情况：pod 故障导致数据缺失，需要绘制前后30分钟的图像
-# python3 extract_metric.py --uuid=38ee3d45-82 --component=cartservice --metric=pod_cpu_usage --extend 30
+# python3 unit-test/metric/pattern-analysis/extract_metric.py --uuid=38ee3d45-82 --component=cartservice --metric=pod_cpu_usage --extend 30

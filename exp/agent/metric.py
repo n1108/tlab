@@ -63,8 +63,8 @@ class EnsembleDetector:
         if iqr == 0:
              return np.zeros(len(series), dtype=bool)
              
-        lower_bound = q1 - 1.5 * iqr
-        upper_bound = q3 + 1.5 * iqr
+        lower_bound = q1 - 2.0 * iqr
+        upper_bound = q3 + 2.0 * iqr
         
         return ((series < lower_bound) | (series > upper_bound)).values
 
@@ -134,7 +134,20 @@ class EnsembleDetector:
         dynamic_thresh = score_mean - 3 * score_std
         
         # Hard cap to avoid false positives in noisy data
-        final_thresh = min(-0.45, dynamic_thresh)
+        # If low variance (stable), act more conservatively but allow subtle anomalies
+        cv = series.std() / (abs(series.mean()) + 1e-10)
+        
+        if cv < 0.05:
+            min_std = 0.01
+            final_thresh_cap = -0.45
+        else:
+            min_std = 0.10
+            final_thresh_cap = -0.65
+            
+        score_std = max(score_std, min_std)
+        dynamic_thresh = score_mean - 3 * score_std
+        
+        final_thresh = min(final_thresh_cap, dynamic_thresh)
         
         is_candidate = (anomaly_scores < final_thresh) | iqr_mask
         
