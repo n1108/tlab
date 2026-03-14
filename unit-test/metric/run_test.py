@@ -19,6 +19,11 @@ sys.path.append(str(workspace_root / "unit-test/metric/baselines"))
 
 from exp.agent.metric import MetricAgent
 from rule_based import RuleBasedMetricAgent
+# Need exception handling if rule_high_precision doesn't exist yet, but we just made it.
+try:
+    from rule_high_precision import RuleBasedHighPrecisionAgent
+except ImportError:
+    pass
 
 def run_tests(limit=None, method="metric-agent"):
     # Define paths
@@ -26,7 +31,13 @@ def run_tests(limit=None, method="metric-agent"):
     result_dir = workspace_root / "unit-test/metric/results"
     
     # Choose output file based on method (optional, good practice)
-    prediction_filename = "predictions_rule_based.json" if method == "rule-based" else "predictions.json"
+    if method == "rule-based":
+        prediction_filename = "predictions_rule_based.json"
+    elif method == "rule-hp":
+        prediction_filename = "predictions_hp.json"
+    else:
+        prediction_filename = "predictions.json"
+        
     result_file = result_dir / prediction_filename
     
     dataset_root = workspace_root / "dataset"
@@ -52,6 +63,9 @@ def run_tests(limit=None, method="metric-agent"):
     if method == "rule-based":
         print("Using RuleBasedMetricAgent")
         agent = RuleBasedMetricAgent(root_path=str(dataset_root))
+    elif method == "rule-hp":
+        print("Using RuleBasedHighPrecisionAgent (High Precision)")
+        agent = RuleBasedHighPrecisionAgent(root_path=str(dataset_root))
     else:
         print("Using MetricAgent (default)")
         agent = MetricAgent(root_path=str(dataset_root))
@@ -105,17 +119,6 @@ def run_tests(limit=None, method="metric-agent"):
                     "timestamps": sorted(list(data["timestamps"]))
                 })
 
-            # Create result entry with only required fields
-            result_entry = {
-                "uuid": case.get("uuid"),
-                "root_cause_components": case.get("root_cause_components"),
-                "detected_anomalies": formatted_detections
-            }
-            
-            results.append(result_entry)
-            
-        except Exception as e:
-            
             # Create result entry with only required fields
             result_entry = {
                 "uuid": case.get("uuid"),
@@ -223,15 +226,10 @@ def evaluate_accuracy(results, test_cases):
     print(f"  - Recall: {recall:.2f}%")
     print(f"F1 Score: {f1:.2f}")
 
-
-
-
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--limit", type=int, default=None, help="Number of test cases to run")
-    parser.add_argument("--method", type=str, default="metric-agent", choices=["metric-agent", "rule-based"], help="Anomaly detection method to use")
+    parser.add_argument("--method", type=str, default="metric-agent", choices=["metric-agent", "rule-based", "rule-hp"], help="Anomaly detection method to use")
     args = parser.parse_args()
     
     run_tests(limit=args.limit, method=args.method)
-
-# python3 unit-test/metric/run_test.py --limit 5 --method rule-based
