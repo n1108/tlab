@@ -55,18 +55,38 @@ class EnsembleDetector:
         """
         if len(series) < 5:
             return np.zeros(len(series), dtype=bool)
+
+        # Skip IQR if series is zero-inflated (too sparse)
+        # In sparse data, IQR becomes 0 and flags any non-zero value as anomaly
+        if (series.abs() < 1e-9).mean() > 0.3:
+            return np.zeros(len(series), dtype=bool)
             
         q1 = series.quantile(0.25)
         q3 = series.quantile(0.75)
         iqr = q3 - q1
         
         if iqr == 0:
-             return np.zeros(len(series), dtype=bool)
+            median = series.median()
+            # If median is effectively zero
+            if abs(median) < 1e-9:
+                # If series passed sparsity check (<30% zeros), flag non-zero values
+                return (series.abs() > 1e-6)
+            # For non-zero median, flag values deviating by > 20%
+            return (series - median).abs() > (0.2 * abs(median))
              
         lower_bound = q1 - 2.0 * iqr
         upper_bound = q3 + 2.0 * iqr
         
-        return ((series < lower_bound) | (series > upper_bound)).values
+        iqr_mask = (series < lower_bound) | (series > upper_bound)
+        
+        # Add relative deviation check for robust filtering
+        # Require >30% deviation from median to be considered a true anomaly
+        median = series.median()
+        if abs(median) > 1e-9:
+            relative_deviation = (series - median).abs() / abs(median)
+            iqr_mask = iqr_mask & (relative_deviation > 0.30)
+            
+        return iqr_mask.values
 
     def _detect_local_pattern(self, series: pd.Series, anomaly_indices: np.ndarray) -> str:
         """
@@ -122,10 +142,17 @@ class EnsembleDetector:
         # 3. IQR (Global Hard Threshold)
         iqr_mask = self._calculate_iqr_mask(series)
         
-        # 4. Fusion Formula from PPT: (IF - 0.1 * HBOS) / 2
-        # IF is negative for anomalies. HBOS is positive for anomalies.
-        # Result: More negative = More anomalous.
-        anomaly_scores = (if_scores - (0.1 * hbos_scores)) / 2
+        # 4. Fusion
+        # Handle sparse data: If data is primarily zeros (e.g. error count, memory spike),
+        # HBOS scores become unreliable due to binning artifacts on small scales.
+        # Use Isolation Forest score directly for sparse data.
+        if (series.abs() < 1e-9).mean() > 0.3:
+            anomaly_scores = if_scores
+        else:
+            # Formula from PPT: (IF - 0.1 * HBOS) / 2
+            # IF is negative for anomalies. HBOS is positive for anomalies.
+            # Result: More negative = More anomalous.
+            anomaly_scores = (if_scores - (0.1 * hbos_scores)) / 2
         
         # 5. Dynamic Thresholding
         # Using 3-sigma rule on the fusion score
@@ -139,7 +166,7 @@ class EnsembleDetector:
         
         if cv < 0.05:
             min_std = 0.01
-            final_thresh_cap = -0.45
+            final_thresh_cap = -0.65
         else:
             min_std = 0.10
             final_thresh_cap = -0.65
