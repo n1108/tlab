@@ -81,10 +81,27 @@ class EnsembleDetector:
         
         # Add relative deviation check for robust filtering
         # Require >30% deviation from median to be considered a true anomaly
+        # Adjust threshold based on volatility (CV)
         median = series.median()
         if abs(median) > 1e-9:
             relative_deviation = (series - median).abs() / abs(median)
-            iqr_mask = iqr_mask & (relative_deviation > 0.30)
+            cv = series.std() / (abs(series.mean()) + 1e-9)
+            
+            # Use stricter criteria for highly volatile metrics (CV > 1.0)
+            # to filter out normal bursty behavior (e.g. disk I/O spikes)
+            is_spike = series > median
+            
+            if cv > 1.0:
+                # For spikes, require massive deviation (15x) to ignore noise
+                # For drops, require significant drop (50%)
+                threshold_val = np.where(is_spike, 15.0, 0.5)
+            else:
+                # Standard deviation check for stable metrics
+                # For spikes, allow base 50% + volatility scaling
+                # For drops, keep strict 30%
+                threshold_val = np.where(is_spike, 0.5 + (2.0 * cv), 0.3)
+                
+            iqr_mask = iqr_mask & (relative_deviation > threshold_val)
             
         return iqr_mask.values
 
@@ -166,6 +183,9 @@ class EnsembleDetector:
         
         if cv < 0.05:
             min_std = 0.01
+            final_thresh_cap = -0.65
+        elif cv > 1.0:
+            min_std = 0.20 # Relax threshold significantly for high variance
             final_thresh_cap = -0.65
         else:
             min_std = 0.10
