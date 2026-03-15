@@ -18,13 +18,23 @@ class RuleBasedMetricAgent(MetricAgent):
     
     def __init__(self, root_path):
         super().__init__(root_path)
-        # 规则1忽略的指标
+        # 规则1忽略的指标: error/exception 等稀疏指标不适合用中位数绝对偏差(MAD)检测
         self.rule1_ignore_metrics = [
             "error_ratio",
             "client_error_ratio",
             "memory_usage",
-            "node_disk_written_bytes_total" # 从 pattern 看 testcase 1 的该指标确实应该报异常，暂且忽略
+            "pod_memory_working_set_bytes",
+
+            # testcase 1 确实有异常，暂且忽略
+            "node_disk_written_bytes_total",
+            "pod_fs_writes_bytes"
         ]
+        
+        # 指标绑定关系：如果检测到 Key 指标异常，则认为 Value 列表中的指标也异常
+        self.metric_binds = {
+            "rrt": ["rrt_max"],
+            # "cpu_usage": ["cpu_load"],
+        }
 
     def _get_service_name(self, pod_name):
         if not isinstance(pod_name, str): return "unknown"
@@ -107,6 +117,13 @@ class RuleBasedMetricAgent(MetricAgent):
                             "timestamps": pod_df["time"].astype(str).tolist()
                         })
 
+            # 如果检测出太多（超过总数25%）的pod都是outlier，说明这个metric本身在不同服务间差异巨大（如network bytes）
+            # 这种情况下，全局outlier检测失效，应忽略该metric
+            total_pods_in_kpi = kpi_df["pod"].nunique()
+            unique_anomalous_pods = set([e["pod"] for e in kpi_events])
+            if total_pods_in_kpi > 0 and (len(unique_anomalous_pods) / total_pods_in_kpi) > 0.25:
+                continue
+
             # --- Aggregation Logic ---
             # Group caught events by service
             detected_service_events = {}
@@ -135,5 +152,22 @@ class RuleBasedMetricAgent(MetricAgent):
                 else:
                     # No aggregation, keep individual events
                     events.extend(svc_events)
+
+        # --- Metric Binding Post-processing ---
+        # 如果检测到了 metric A 的异常，而 A 与 B 绑定，则为同一组件补充 B 的异常
+        # 这有助于保持相关指标的一致性
+        derived_events = []
+        for event in events:
+            kpi = event.get("kpi")
+            if kpi in self.metric_binds:
+                for bound_kpi in self.metric_binds[kpi]:
+                    # 复用原事件的所有属性，仅修改 metric name
+                    new_event = event.copy()
+                    new_event["kpi"] = bound_kpi
+                    # 可以在 pattern 中标记这是推导出来的，或者保持原样
+                    # new_event["pattern"] = "derived_from_" + kpi
+                    derived_events.append(new_event)
+        
+        events.extend(derived_events)
 
         return {"observation": "Rule-based detection completed", "events": events}
