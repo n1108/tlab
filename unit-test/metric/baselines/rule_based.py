@@ -67,62 +67,84 @@ class RuleBasedMetricAgent(MetricAgent):
 
             # 规则1：对于某个metric，某个组件的平均值偏离其他组件，基于和中位数的倍数关系识别
             if 1 in self.rules and kpi not in self.rule1_ignore_metrics:
-                for pod, pod_df in kpi_df.groupby("pod"):
-                    service_name = self._get_service_name(pod)
-                    other_pods = kpi_df[kpi_df["pod"] != pod]
-                    if other_pods.empty: continue
+                # Explicitly exclude noisy metrics
+                if "client_error" in kpi or "node_" in kpi or "max" in kpi:
+                    pass
+                else:
+                    # 过滤: 仅对 Golden Signals 和 资源指标 做 Rule 1 检测
+                    rule1_whitelist = ["cpu", "memory", "request", "error", "rrt", "response"]
+                    should_check = False
+                    for w in rule1_whitelist:
+                        if w in kpi: 
+                            should_check = True
+                            break
                     
-                    vals = other_pods["value"]
-                    median_val = vals.median()
-                    mad = (vals - median_val).abs().median()
-                    # 使用中位数代替均值，避免单点突刺（spike）导致的误报
-                    val = pod_df["value"].median()
+                    if should_check:
+                        pass
                     
-                    is_outlier = False
+                    for pod, pod_df in kpi_df.groupby("pod"):
+                        if not should_check: break
+                        service_name = self._get_service_name(pod)
+                        
+                        # Compare against ALL other pods (Global Outlier)
+                        # This works well if most services are healthy/fast
+                        other_pods = kpi_df[kpi_df["pod"] != pod]
+                        if other_pods.empty: continue
+                        
+                        vals = other_pods["value"]
+                        median_val = vals.median()
+                        mad = (vals - median_val).abs().median()
+                        # 使用中位数代替均值，避免单点突刺（spike）导致的误报
+                        val = pod_df["value"].median()
+                        
+                        is_outlier = False
                     
-                    # 定义绝对阈值 epsilon，避免在数值极小时产生误报
-                    # 对于 CPU (0~1) 或 Error Rate (0~1) 等归一化指标，0.1 是一个显著的变化
-                    # 对于 Latency/Throughput 等大数值指标，0.1 也可以接受
-                    EPSILON = 0.1 
+                        # Avoid small noise triggering alerts
+                        EPSILON = 0.05
 
-                    # Case 1: 分布有波动 (MAD > 0)
-                    if mad > 1e-4:
-                        z_score = 0.6745 * (val - median_val) / mad
-                        if abs(z_score) > 3.5:
-                            # 结合相对变化，过滤掉高 Z-score 但低幅度的噪声
+                        # Case 1: 分布有波动 (MAD > 0)
+                        if mad > 1e-4:
+                            z_score = 0.6745 * (val - median_val) / mad
+                            if abs(z_score) > 3.5:
+                                # 结合相对变化，过滤掉高 Z-score 但低幅度的噪声
+                                if median_val > 1e-4:
+                                    # 3倍中位数 或者 变化幅度超过阈值 AND 绝对差异显著
+                                    if (val > 3.0 * median_val or val < median_val / 3.0) and abs(val - median_val) > EPSILON:
+                                        is_outlier = True
+                                else:
+                                    # 基准为0，但波动大
+                                    if abs(val) > EPSILON:
+                                        is_outlier = True
+
+                        # Case 2: 分布集中 (MAD ~ 0)
+                        else:
                             if median_val > 1e-4:
-                                # 3倍中位数 或者 变化幅度超过阈值
-                                if val > 3.0 * median_val or val < median_val / 3.0:
+                                # 基准非0，要求3倍差异 (e.g. 1 process vs 10, 0.02 cpu vs 0.4)
+                                # AND 绝对差异显著
+                                if (val > 3.0 * median_val or val < median_val / 3.0) and abs(val - median_val) > EPSILON:
                                     is_outlier = True
                             else:
-                                # 基准为0，但波动大
+                                # 基准为0 (e.g. Error Count)
+                                # 只有当值显著大于0时才报警
                                 if abs(val) > EPSILON:
                                     is_outlier = True
 
-                    # Case 2: 分布集中 (MAD ~ 0)
-                    else:
-                        if median_val > 1e-4:
-                            # 基准非0，要求3倍差异 (e.g. 1 process vs 10, 0.02 cpu vs 0.4)
-                            if val > 3.0 * median_val or val < median_val / 3.0:
-                                is_outlier = True
-                        else:
-                            # 基准为0 (e.g. Error Count)
-                            # 只有当值显著大于0时才报警
-                            if abs(val) > EPSILON:
-                                is_outlier = True
-
-                    if is_outlier:
-                        kpi_events.append({
-                            "pod": pod,
-                            "service": service_name,
-                            "kpi": kpi,
-                            "pattern": "mean_outlier",
-                            "timestamps": pod_df["time"].astype(str).tolist()
-                        })
+                        if is_outlier:
+                            kpi_events.append({
+                                "pod": pod,
+                                "service": service_name,
+                                "kpi": kpi, 
+                                "pattern": "mean_outlier",
+                                "timestamps": pod_df["time"].astype(str).tolist()
+                            })
 
             # 规则2：数据缺失 - 某组件在一段时间内中断上报 (Gap Detection)
             gap_check_iter = kpi_df.groupby("pod") if 2 in self.rules else []
             for pod, pod_df in gap_check_iter:
+                # 过滤关键指标，避免在非关键指标上报 Missing Data
+                # 仅检测核心黄金指标的缺失
+                if not any(x in kpi for x in ["cpu", "memory", "request", "error", "latency", "rrt"]):
+                    continue
                 pod_df = pod_df.sort_values("time")
                 times = pod_df["time"].values
                 if len(times) < 2: continue
@@ -158,55 +180,102 @@ class RuleBasedMetricAgent(MetricAgent):
                             "timestamps": [str(t_start), str(t_end)]
                         })
             
-            # 规则3：单个metric的时序波形异常
+            # 规则3：更加细粒度的类别特定检测逻辑
+            # Instead of a single "Waveform Spike", we define specialized detectors.
             if 3 in self.rules:
-                # Reference: MetricAgent uses IQR (1.5) + IF + HBOS. 
-                # Here we use IQR (3.0) + Relative/Absolute Threshold to be strict.
                 for pod, pod_df in kpi_df.groupby("pod"):
                     series = pod_df["value"]
                     if len(series) < 5: continue
                     
-                    q1 = series.quantile(0.25)
-                    q3 = series.quantile(0.75)
-                    iqr = q3 - q1
-                    median = series.median()
-                    diff = (series - median).abs()
-                    
-                    # 1. Statistical Outlier Detection (Strict)
-                    if iqr > 1e-5:
-                        # 3.0倍 IQR (Extreme Outlier) -> increased to 5.0 to suppress bursty noise
-                        lower = q1 - 5.0 * iqr
-                        upper = q3 + 5.0 * iqr
-                        is_outlier = (series < lower) | (series > upper)
-                    else:
-                        # IQR=0 Fallback
-                        is_outlier = diff > 0.0
+                    # Ignore client-side errors (4xx) and noisy node metrics and max metrics
+                    if "client_error" in kpi or "node_" in kpi or "max" in kpi: continue
 
-                    # 2. Magnitude Filter (Name-aware Heuristics)
-                    # Dynamic threshold based on metric type and scale
-                    min_abs_change = 0.15 # Default for ratios (0-1)
+                    is_anomaly = False
+                    timestamps = []
                     
-                    # Heuristic A: Bytes (Large scale)
-                    if "bytes" in kpi:
-                        min_abs_change = 10 * 1024 * 1024 # 10 MB noise floor
-                    # Heuristic B: Time/Latency (Seconds)
-                    elif "time" in kpi or "rrt" in kpi or "latency" in kpi or "seconds" in kpi:
-                        min_abs_change = 0.05 # 50ms noise floor
-                    # Heuristic C: Counts/QPS (Integer scale)
-                    elif "count" in kpi or "qps" in kpi or "packets" in kpi:
-                        min_abs_change = 10.0 # 10 requests/packets noise floor
-                    
-                    if median > 1.0:
-                        is_significant = diff > max(min_abs_change, 0.3 * median)
+                    # --- Sub-Rule 3.1: Error Metrics (Golden Signal: Errors) ---
+                    # 严格判定：任何 > 0 的错误率都被视为异常，如果有一定持续性
+                    # Include timeout as error type
+                    if "error" in kpi or "timeout" in kpi:
+                        # 忽略极小的偶然错误 (e.g. 1/1000 requests)
+                        # Increase threshold to 2% to reduce FP
+                        threshold = 0.02 # 2% error rate
+                        anoms = series > threshold
+                        # Require persistence: at least 3 points over threshold (more strict)
+                        if anoms.sum() >= 3:
+                            timestamps = pod_df.loc[anoms, "time"].astype(str).tolist()
+                            is_anomaly = True
+
+                    # --- Sub-Rule 3.2: Latency Metrics (Golden Signal: Latency) ---
+                    # 延迟指标的 IQR 检测需要非常宽容，因为延迟本身方差大
+                    elif "rrt" in kpi or "latency" in kpi or "time" in kpi:
+                        q1 = series.quantile(0.25)
+                        q3 = series.quantile(0.75)
+                        iqr = q3 - q1
+                        median = series.median()
+                        
+                        # Use massive margin (15.0 IQR) or absolute threshold (e.g. > 300ms baseline increase)
+                        if iqr > 1e-5:
+                             # 20.0 IQR to be very very loose on variance
+                            upper = q3 + 20.0 * iqr
+                            anoms = series > upper
+                        else:
+                            # Baseline calm -> Spike > 300ms is anomalous
+                            anoms = series > (median + 0.3)
+                        
+                        if anoms.any():
+                            timestamps = pod_df.loc[anoms, "time"].astype(str).tolist()
+                            is_anomaly = True
+
+                    # --- Sub-Rule 3.3: Traffic/Throughput (Golden Signal: Traffic) ---
+                    # 流量突降 (Drop) 或突增 (Spike)
+                    # 通常由 Rule 2 (Missing Data) 覆盖 Drop to 0。这里检测显著变化。
+                    elif "qps" in kpi or "bps" in kpi or "request" in kpi or "response" in kpi or "packet" in kpi:
+                        median = series.median()
+                        if median > 10.0: # Only analyze if there is meaningful traffic
+                             # Drop significantly: < 10% of median (Severe Drop)
+                             # Spike significantly: > 5x median
+                             anoms = (series < median * 0.1) | (series > median * 5.0)
+                             if anoms.any():
+                                 timestamps = pod_df.loc[anoms, "time"].astype(str).tolist()
+                                 is_anomaly = True
+
+                    # --- Sub-Rule 3.4: Saturation (CPU/Memory) ---
+                    # 资源使用率通常比较平稳。
+                    elif "cpu" in kpi or "memory" in kpi: 
+                        # Identify system components to reduce noise
+                        is_system = pod.startswith("k8s-master") or pod.startswith("tidb") or pod.startswith("aiops-k8s")
+                        
+                        # CPU/Mem Usage Rate (0-1 or 0-100)
+                        # Only flag simple overload or massive spike
+                        if "usage_rate" in kpi or "util" in kpi: 
+                            # If usage > 95% (Saturation). Stricter (99%) for system nodes.
+                            sat_thresh = 0.99 if is_system else 0.95
+                            saturation = series > sat_thresh
+                            
+                            if saturation.any():
+                                timestamps = pod_df.loc[saturation, "time"].astype(str).tolist()
+                                is_anomaly = True
+                            else:
+                                # Detection of sudden jump (e.g. 10% -> 80%)
+                                # Stricter jump for system nodes
+                                diff = series.diff().abs()
+                                jump_thresh = 0.8 if is_system else 0.5
+                                jump = diff > jump_thresh
+                                if jump.any():
+                                    timestamps = pod_df.loc[jump, "time"].astype(str).tolist()
+                                    is_anomaly = True
+                        
+                        # Handle raw bytes/cores if needed (usually less critical for saturation alarms than rate)
+                        # We skip raw value spikes here to avoid noise, assuming usage_rate covers saturation.
+
+                    # --- Sub-Rule 3.5: Fallback Generic (Strict) ---
+                    # 对于未命名的其他指标（如 I/O, Count等），忽略！
+                    # 为了提高 Precision，在 Rule-based 方法中我们只关注具备明确业务含义的黄金指标。
                     else:
-                        is_significant = diff > min_abs_change
-                    
-                    final_anomalies = is_outlier & is_significant
-                    
-                    final_anomalies = is_outlier & is_significant
-                    
-                    if final_anomalies.any():
-                        timestamps = pod_df.loc[final_anomalies, "time"].astype(str).tolist()
+                        pass
+
+                    if is_anomaly:
                         svc = self._get_service_name(pod)
                         kpi_events.append({
                             "pod": pod,
