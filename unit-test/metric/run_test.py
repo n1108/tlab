@@ -19,11 +19,6 @@ sys.path.append(str(workspace_root / "unit-test/metric/baselines"))
 
 from exp.agent.metric import MetricAgent
 from rule_based import RuleBasedMetricAgent
-# Need exception handling if rule_high_precision doesn't exist yet, but we just made it.
-try:
-    from rule_high_precision import RuleBasedHighPrecisionAgent
-except ImportError:
-    pass
 
 def run_tests(limit=None, method="metric-agent"):
     # Define paths
@@ -229,7 +224,7 @@ def evaluate_accuracy(results, test_cases):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--limit", type=int, default=None, help="Number of test cases to run")
-    parser.add_argument("--method", type=str, default="metric-agent", choices=["metric-agent", "rule-based", "rule-hp"], help="Anomaly detection method to use")
+    parser.add_argument("--method", type=str, default="metric-agent", choices=["metric-agent", "rule-based"], help="Anomaly detection method to use")
     args = parser.parse_args()
     
     run_tests(limit=args.limit, method=args.method)
