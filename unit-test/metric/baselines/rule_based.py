@@ -19,7 +19,7 @@ class RuleBasedMetricAgent(MetricAgent):
     def __init__(self, root_path):
         super().__init__(root_path)
         # 调试配置：手动修改此列表以只运行特定规则 [1, 2]
-        self.rules = [1, 2] 
+        self.rules = [3]
         
         # 规则1忽略的指标: error/exception 等稀疏指标不适合用中位数绝对偏差(MAD)检测
         self.rule1_ignore_metrics = [
@@ -156,6 +156,50 @@ class RuleBasedMetricAgent(MetricAgent):
                             "kpi": kpi, 
                             "pattern": "missing_data",
                             "timestamps": [str(t_start), str(t_end)]
+                        })
+            
+            # 规则3：单个metric的时序波形异常
+            if 3 in self.rules:
+                # 使用严格的 IQR 检测，减少误报
+                # Reference: MetricAgent uses IQR (1.5) + IF + HBOS. 
+                # Here we use IQR (3.0) + Absolute Threshold to be strict.
+                for pod, pod_df in kpi_df.groupby("pod"):
+                    series = pod_df["value"]
+                    if len(series) < 5: continue
+                    
+                    q1 = series.quantile(0.25)
+                    q3 = series.quantile(0.75)
+                    iqr = q3 - q1
+                    median = series.median()
+                    
+                    # 1. Statistical Outlier Detection (Strict)
+                    if iqr > 1e-5:
+                        # 3.0倍 IQR (Extreme Outlier)
+                        lower = q1 - 3.0 * iqr
+                        upper = q3 + 3.0 * iqr
+                        is_outlier = (series < lower) | (series > upper)
+                    else:
+                        # 此处处理 IQR=0 的情况（如大部分数据为0的 error_rate）
+                        # 使用绝对阈值兜底，防止极小值的微小抖动被报出
+                        # 配合下面的 Magnitude Filter 生效
+                        is_outlier = (series - median).abs() > 0.1
+
+                    # 2. Magnitude Filter (绝对幅值过滤)
+                    # 强制要求 deviation > 0.1 (Same EPSILON as Rule 1)
+                    # 避免捕获到虽符合统计异常但实际业务无感的微小波动
+                    is_significant = (series - median).abs() > 0.1
+                    
+                    final_anomalies = is_outlier & is_significant
+                    
+                    if final_anomalies.any():
+                        timestamps = pod_df.loc[final_anomalies, "time"].astype(str).tolist()
+                        svc = self._get_service_name(pod)
+                        kpi_events.append({
+                            "pod": pod,
+                            "service": svc,
+                            "kpi": kpi,
+                            "pattern": "waveform_spike",
+                            "timestamps": timestamps
                         })
 
             # 如果检测出太多（超过总数25%）的pod都是outlier，说明这个metric本身在不同服务间差异巨大（如network bytes）
