@@ -61,6 +61,30 @@ class EnsembleDetector:
         if (series.abs() < 1e-9).mean() > 0.3:
             return np.zeros(len(series), dtype=bool)
             
+        # Handle Discrete/Low-Cardinality Data (e.g. 0.0 vs 0.01 flip-flops)
+        # If data has very few unique values (< 5 or < 10% of length),
+        # use frequency-based outlier detection instead of IQR.
+        # Rule: A value is an outlier only if it appears < 10% of the time.
+        pct_unique = series.nunique() / len(series)
+        if series.nunique() <= 5 or pct_unique < 0.1:
+            val_counts = series.value_counts(normalize=True)
+            # Find the dominant mode
+            mode_val = val_counts.index[0] 
+            
+            # Use 20% frequency threshold to catch Drop anomalies (16%)
+            rare_values = val_counts[val_counts < 0.2].index
+            
+            # Additional Filter: Only flag rare values if they differ significantly (> 20%) from the mode
+            # This handles micro-fluctuations in discrete signals (e.g. 0.1 -> 0.09)
+            significant_rare = []
+            for val in rare_values:
+                # Calculate relative difference
+                rel_diff = abs(val - mode_val) / (abs(mode_val) + 1e-9)
+                if rel_diff > 0.2:
+                    significant_rare.append(val)
+            
+            return series.isin(significant_rare).values
+            
         q1 = series.quantile(0.25)
         q3 = series.quantile(0.75)
         iqr = q3 - q1
@@ -93,14 +117,18 @@ class EnsembleDetector:
             
             if cv > 1.0:
                 # For spikes, require massive deviation (15x) to ignore noise
-                # For drops, require significant drop (50%)
-                threshold_val = np.where(is_spike, 15.0, 0.5)
+                thresh_spike = 15.0
             else:
                 # Standard deviation check for stable metrics
-                # For spikes, allow base 50% + volatility scaling
-                # For drops, keep strict 30%
-                threshold_val = np.where(is_spike, 0.5 + (2.0 * cv), 0.3)
+                thresh_spike = 0.5 + (2.0 * cv)
+            
+            # Universal drop logic: Base 50% + volatility scaling
+            # Avoids flagging normal idle periods (drops to 30-40% of mean) as anomalies
+            # while still detecting complete drops in stable metrics
+            thresh_drop = 0.5 + (1.0 * cv)
                 
+            threshold_val = np.where(is_spike, thresh_spike, thresh_drop)
+            
             iqr_mask = iqr_mask & (relative_deviation > threshold_val)
             
         return iqr_mask.values
@@ -197,6 +225,14 @@ class EnsembleDetector:
         final_thresh = min(final_thresh_cap, dynamic_thresh)
         
         is_candidate = (anomaly_scores < final_thresh) | iqr_mask
+        
+        # Post-Processing: Filter insignificant anomalies
+        # Require at least 1.5% relative deviation to filter out micro-fluctuations
+        # in extremely stable metrics (e.g. Memory Available 0.8% change)
+        median = series.median()
+        if abs(median) > 1e-9:
+            relative_deviation = (series - median).abs() / abs(median)
+            is_candidate = is_candidate & (relative_deviation > 0.015)
         
         if not np.any(is_candidate):
             return {}

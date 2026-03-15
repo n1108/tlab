@@ -233,3 +233,5 @@ if __name__ == "__main__":
     args = parser.parse_args()
     
     run_tests(limit=args.limit, method=args.method)
+
+# python3 unit-test/metric/run_test.py --limit=5 --method=metric-agent
