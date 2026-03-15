@@ -18,6 +18,9 @@ class RuleBasedMetricAgent(MetricAgent):
     
     def __init__(self, root_path):
         super().__init__(root_path)
+        # 调试配置：手动修改此列表以只运行特定规则 [1, 2]
+        self.rules = [1, 2] 
+        
         # 规则1忽略的指标: error/exception 等稀疏指标不适合用中位数绝对偏差(MAD)检测
         self.rule1_ignore_metrics = [
             "error_ratio",
@@ -63,7 +66,7 @@ class RuleBasedMetricAgent(MetricAgent):
             kpi_events = [] 
 
             # 规则1：对于某个metric，某个组件的平均值偏离其他组件，基于和中位数的倍数关系识别
-            if kpi not in self.rule1_ignore_metrics:
+            if 1 in self.rules and kpi not in self.rule1_ignore_metrics:
                 for pod, pod_df in kpi_df.groupby("pod"):
                     service_name = self._get_service_name(pod)
                     other_pods = kpi_df[kpi_df["pod"] != pod]
@@ -117,10 +120,49 @@ class RuleBasedMetricAgent(MetricAgent):
                             "timestamps": pod_df["time"].astype(str).tolist()
                         })
 
+            # 规则2：数据缺失 - 某组件在一段时间内中断上报 (Gap Detection)
+            gap_check_iter = kpi_df.groupby("pod") if 2 in self.rules else []
+            for pod, pod_df in gap_check_iter:
+                pod_df = pod_df.sort_values("time")
+                times = pod_df["time"].values
+                if len(times) < 2: continue
+
+                diffs = np.diff(times)
+                
+                # 兼容 timestamp (int/float) 和 datetime64[ns]
+                if np.issubdtype(diffs.dtype, np.timedelta64):
+                    diffs_sec = diffs / np.timedelta64(1, 's')
+                else:
+                    diffs_sec = diffs
+                
+                median_interval = np.median(diffs_sec)
+                if median_interval < 1.0: 
+                    # 采样间隔过小，可能是脏数据或非周期性数据，忽略
+                    continue
+                
+                # 缺失数据的判定阈值：3倍采样间隔
+                threshold = 3.0 * median_interval
+                gap_indices = np.where(diffs_sec > threshold)[0]
+                
+                if len(gap_indices) > 0:
+                    svc = self._get_service_name(pod)
+                    for idx in gap_indices:
+                        t_start = times[idx]
+                        t_end = times[idx+1]
+                        
+                        kpi_events.append({
+                            "pod": pod,
+                            "service": svc,
+                            "kpi": kpi, 
+                            "pattern": "missing_data",
+                            "timestamps": [str(t_start), str(t_end)]
+                        })
+
             # 如果检测出太多（超过总数25%）的pod都是outlier，说明这个metric本身在不同服务间差异巨大（如network bytes）
             # 这种情况下，全局outlier检测失效，应忽略该metric
             total_pods_in_kpi = kpi_df["pod"].nunique()
-            unique_anomalous_pods = set([e["pod"] for e in kpi_events])
+            # NOTICE: 仅统计 mean_outlier 类型的 pod，避免 missing_data 事件被误报为 metric 不可用
+            unique_anomalous_pods = set([e["pod"] for e in kpi_events if e["pattern"] == "mean_outlier"])
             if total_pods_in_kpi > 0 and (len(unique_anomalous_pods) / total_pods_in_kpi) > 0.25:
                 continue
 
@@ -146,7 +188,7 @@ class RuleBasedMetricAgent(MetricAgent):
                         "pod": svc, # Use service name as component
                         "service": svc,
                         "kpi": kpi,
-                        "pattern": "mean_outlier",
+                        "pattern": svc_events[0]["pattern"],
                         "timestamps": sorted(list(all_timestamps))
                     })
                 else:
