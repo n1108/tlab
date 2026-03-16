@@ -19,7 +19,7 @@ class RuleBasedMetricAgent(MetricAgent):
     def __init__(self, root_path):
         super().__init__(root_path)
         # self.rules = [1, 2, 3]
-        self.rules = [2] 
+        self.rules = [1, 2, 3] 
 
         # 监控的 pod 级别（除 tidb）metrics 列表
         self.pod_metrics_list = [
@@ -30,7 +30,11 @@ class RuleBasedMetricAgent(MetricAgent):
             'pod_network_receive_packets',
             'pod_network_transmit_bytes',
             'pod_network_transmit_packets',
-            'pod_processes'
+            'pod_processes',
+
+            # pod 级别和 service 级别均存在
+            'request',
+            'response'
         ]
 
         self.pods_list = [
@@ -132,9 +136,6 @@ class RuleBasedMetricAgent(MetricAgent):
                         # 检查部分数据缺失：基于数据点数量
                         # 理论上相同时间段内数据点数量一致。小于最大值的一半视为缺失。
                         count = pod_counts.get(pod, 0)
-
-                        if metric == "pod_processes":
-                            print(f"{pod} processes: {count}, max: {max_count}")
                         
                         if max_count > 5 and count < 0.5 * max_count:
                              svc = self._get_service_name(pod)
