@@ -1,0 +1,490 @@
+[
+    {
+        "metric": "node_cpu_usage_rate",
+        "level": "node"
+    },
+    {
+        "metric": "node_disk_read_bytes_total",
+        "level": "node"
+    },
+    {
+        "metric": "node_disk_read_time_seconds_total",
+        "level": "node"
+    },
+    {
+        "metric": "node_disk_write_time_seconds_total",
+        "level": "node"
+    },
+    {
+        "metric": "node_disk_written_bytes_total",
+        "level": "node"
+    },
+    {
+        "metric": "node_filesystem_free_bytes",
+        "level": "node"
+    },
+    {
+        "metric": "node_filesystem_size_bytes",
+        "level": "node"
+    },
+    {
+        "metric": "node_filesystem_usage_rate",
+        "level": "node"
+    },
+    {
+        "metric": "node_memory_MemAvailable_bytes",
+        "level": "node"
+    },
+    {
+        "metric": "node_memory_MemTotal_bytes",
+        "level": "node"
+    },
+    {
+        "metric": "node_memory_usage_rate",
+        "level": "node"
+    },
+    {
+        "metric": "node_network_receive_bytes_total",
+        "level": "node"
+    },
+    {
+        "metric": "node_network_receive_packets_total",
+        "level": "node"
+    },
+    {
+        "metric": "node_network_transmit_bytes_total",
+        "level": "node"
+    },
+    {
+        "metric": "node_network_transmit_packets_total",
+        "level": "node"
+    },
+    {
+        "metric": "node_sockstat_TCP_inuse",
+        "level": "node"
+    },
+    {
+        "metric": "client_error",
+        "level": "pod"
+    },
+    {
+        "metric": "client_error_ratio",
+        "level": "pod"
+    },
+    {
+        "metric": "error",
+        "level": "pod"
+    },
+    {
+        "metric": "error_ratio",
+        "level": "pod"
+    },
+    {
+        "metric": "pod_cpu_usage",
+        "level": "pod"
+    },
+    {
+        "metric": "pod_fs_reads_bytes",
+        "level": "pod"
+    },
+    {
+        "metric": "pod_fs_writes_bytes",
+        "level": "pod"
+    },
+    {
+        "metric": "pod_memory_working_set_bytes",
+        "level": "pod"
+    },
+    {
+        "metric": "pod_network_receive_bytes",
+        "level": "pod"
+    },
+    {
+        "metric": "pod_network_receive_packets",
+        "level": "pod"
+    },
+    {
+        "metric": "pod_network_transmit_bytes",
+        "level": "pod"
+    },
+    {
+        "metric": "pod_network_transmit_packets",
+        "level": "pod"
+    },
+    {
+        "metric": "pod_processes",
+        "level": "pod"
+    },
+    {
+        "metric": "request",
+        "level": "pod"
+    },
+    {
+        "metric": "response",
+        "level": "pod"
+    },
+    {
+        "metric": "rrt",
+        "level": "pod"
+    },
+    {
+        "metric": "rrt_max",
+        "level": "pod"
+    },
+    {
+        "metric": "server_error",
+        "level": "pod"
+    },
+    {
+        "metric": "server_error_ratio",
+        "level": "pod"
+    },
+    {
+        "metric": "timeout",
+        "level": "pod"
+    },
+    {
+        "metric": "client_error",
+        "level": "service"
+    },
+    {
+        "metric": "client_error_ratio",
+        "level": "service"
+    },
+    {
+        "metric": "error",
+        "level": "service"
+    },
+    {
+        "metric": "error_ratio",
+        "level": "service"
+    },
+    {
+        "metric": "request",
+        "level": "service"
+    },
+    {
+        "metric": "response",
+        "level": "service"
+    },
+    {
+        "metric": "rrt",
+        "level": "service"
+    },
+    {
+        "metric": "rrt_max",
+        "level": "service"
+    },
+    {
+        "metric": "server_error",
+        "level": "service"
+    },
+    {
+        "metric": "server_error_ratio",
+        "level": "service"
+    },
+    {
+        "metric": "timeout",
+        "level": "service"
+    },
+    {
+        "metric": "abnormal_region_count",
+        "level": "tidb"
+    },
+    {
+        "metric": "available_size",
+        "level": "tidb"
+    },
+    {
+        "metric": "block_cache_size",
+        "level": "tidb"
+    },
+    {
+        "metric": "capacity_size",
+        "level": "tidb"
+    },
+    {
+        "metric": "connection_count",
+        "level": "tidb"
+    },
+    {
+        "metric": "cpu_usage",
+        "level": "tidb"
+    },
+    {
+        "metric": "duration_95th",
+        "level": "tidb"
+    },
+    {
+        "metric": "duration_99th",
+        "level": "tidb"
+    },
+    {
+        "metric": "duration_avg",
+        "level": "tidb"
+    },
+    {
+        "metric": "failed_query_ops",
+        "level": "tidb"
+    },
+    {
+        "metric": "grpc_qps",
+        "level": "tidb"
+    },
+    {
+        "metric": "infra_pd_abnormal_region_count",
+        "level": "tidb"
+    },
+    {
+        "metric": "infra_pd_cpu_usage",
+        "level": "tidb"
+    },
+    {
+        "metric": "infra_pd_leader_count",
+        "level": "tidb"
+    },
+    {
+        "metric": "infra_pd_leader_primary",
+        "level": "tidb"
+    },
+    {
+        "metric": "infra_pd_learner_count",
+        "level": "tidb"
+    },
+    {
+        "metric": "infra_pd_memory_usage",
+        "level": "tidb"
+    },
+    {
+        "metric": "infra_pd_region_count",
+        "level": "tidb"
+    },
+    {
+        "metric": "infra_pd_region_health",
+        "level": "tidb"
+    },
+    {
+        "metric": "infra_pd_storage_capacity",
+        "level": "tidb"
+    },
+    {
+        "metric": "infra_pd_storage_size",
+        "level": "tidb"
+    },
+    {
+        "metric": "infra_pd_storage_used_ratio",
+        "level": "tidb"
+    },
+    {
+        "metric": "infra_pd_store_down_count",
+        "level": "tidb"
+    },
+    {
+        "metric": "infra_pd_store_low_space_count",
+        "level": "tidb"
+    },
+    {
+        "metric": "infra_pd_store_slow_count",
+        "level": "tidb"
+    },
+    {
+        "metric": "infra_pd_store_unhealth_count",
+        "level": "tidb"
+    },
+    {
+        "metric": "infra_pd_store_up_count",
+        "level": "tidb"
+    },
+    {
+        "metric": "infra_pd_witness_count",
+        "level": "tidb"
+    },
+    {
+        "metric": "infra_tikv_available_size",
+        "level": "tidb"
+    },
+    {
+        "metric": "infra_tikv_capacity_size",
+        "level": "tidb"
+    },
+    {
+        "metric": "infra_tikv_cpu_usage",
+        "level": "tidb"
+    },
+    {
+        "metric": "infra_tikv_grpc_qps",
+        "level": "tidb"
+    },
+    {
+        "metric": "infra_tikv_io_util",
+        "level": "tidb"
+    },
+    {
+        "metric": "infra_tikv_memory_usage",
+        "level": "tidb"
+    },
+    {
+        "metric": "infra_tikv_qps",
+        "level": "tidb"
+    },
+    {
+        "metric": "infra_tikv_raft_apply_wait",
+        "level": "tidb"
+    },
+    {
+        "metric": "infra_tikv_raft_propose_wait",
+        "level": "tidb"
+    },
+    {
+        "metric": "infra_tikv_read_mbps",
+        "level": "tidb"
+    },
+    {
+        "metric": "infra_tikv_region_pending",
+        "level": "tidb"
+    },
+    {
+        "metric": "infra_tikv_rocksdb_write_stall",
+        "level": "tidb"
+    },
+    {
+        "metric": "infra_tikv_server_is_up",
+        "level": "tidb"
+    },
+    {
+        "metric": "infra_tikv_snapshot_apply_count",
+        "level": "tidb"
+    },
+    {
+        "metric": "infra_tikv_store_size",
+        "level": "tidb"
+    },
+    {
+        "metric": "infra_tikv_threadpool_readpool_cpu",
+        "level": "tidb"
+    },
+    {
+        "metric": "infra_tikv_write_wal_mbps",
+        "level": "tidb"
+    },
+    {
+        "metric": "io_util",
+        "level": "tidb"
+    },
+    {
+        "metric": "leader_count",
+        "level": "tidb"
+    },
+    {
+        "metric": "leader_primary",
+        "level": "tidb"
+    },
+    {
+        "metric": "learner_count",
+        "level": "tidb"
+    },
+    {
+        "metric": "memory_usage",
+        "level": "tidb"
+    },
+    {
+        "metric": "qps",
+        "level": "tidb"
+    },
+    {
+        "metric": "raft_apply_wait",
+        "level": "tidb"
+    },
+    {
+        "metric": "raft_propose_wait",
+        "level": "tidb"
+    },
+    {
+        "metric": "read_mbps",
+        "level": "tidb"
+    },
+    {
+        "metric": "region_count",
+        "level": "tidb"
+    },
+    {
+        "metric": "region_health",
+        "level": "tidb"
+    },
+    {
+        "metric": "region_pending",
+        "level": "tidb"
+    },
+    {
+        "metric": "rocksdb_write_stall",
+        "level": "tidb"
+    },
+    {
+        "metric": "server_is_up",
+        "level": "tidb"
+    },
+    {
+        "metric": "snapshot_apply_count",
+        "level": "tidb"
+    },
+    {
+        "metric": "storage_capacity",
+        "level": "tidb"
+    },
+    {
+        "metric": "storage_size",
+        "level": "tidb"
+    },
+    {
+        "metric": "storage_used_ratio",
+        "level": "tidb"
+    },
+    {
+        "metric": "store_down_count",
+        "level": "tidb"
+    },
+    {
+        "metric": "store_low_space_count",
+        "level": "tidb"
+    },
+    {
+        "metric": "store_size",
+        "level": "tidb"
+    },
+    {
+        "metric": "store_slow_count",
+        "level": "tidb"
+    },
+    {
+        "metric": "store_unhealth_count",
+        "level": "tidb"
+    },
+    {
+        "metric": "store_up_count",
+        "level": "tidb"
+    },
+    {
+        "metric": "threadpool_readpool_cpu",
+        "level": "tidb"
+    },
+    {
+        "metric": "top_sql_cpu",
+        "level": "tidb"
+    },
+    {
+        "metric": "transaction_retry",
+        "level": "tidb"
+    },
+    {
+        "metric": "uptime",
+        "level": "tidb"
+    },
+    {
+        "metric": "witness_count",
+        "level": "tidb"
+    },
+    {
+        "metric": "write_wal_mbps",
+        "level": "tidb"
+    }
+]

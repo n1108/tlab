@@ -20,7 +20,7 @@ sys.path.append(str(workspace_root / "unit-test/metric/baselines"))
 from exp.agent.metric import MetricAgent
 from rule_based import RuleBasedMetricAgent
 
-def run_tests(limit=None, method="metric-agent"):
+def run_tests(limit=None, method="metric-agent", uuid=None):
     # Define paths
     test_data_path = workspace_root / "unit-test/metric/test_dataset.json"
     result_dir = workspace_root / "unit-test/metric/results"
@@ -28,8 +28,6 @@ def run_tests(limit=None, method="metric-agent"):
     # Choose output file based on method (optional, good practice)
     if method == "rule-based":
         prediction_filename = "predictions_rule_based.json"
-    elif method == "rule-hp":
-        prediction_filename = "predictions_hp.json"
     else:
         prediction_filename = "predictions.json"
         
@@ -48,19 +46,21 @@ def run_tests(limit=None, method="metric-agent"):
     with open(test_data_path, 'r') as f:
         test_cases = json.load(f)
     
-    if limit is not None:
+    if uuid is not None:
+        print(f"Running single test case with UUID: {uuid}")
+        test_cases = [case for case in test_cases if case.get("uuid") == uuid]
+        if not test_cases:
+            print(f"No test case found with UUID: {uuid}")
+            return
+    elif limit is not None:
         print(f"Limiting to first {limit} test cases.")
         test_cases = test_cases[:limit]
         
     print(f"Loaded {len(test_cases)} test cases.")
     
-    # Initialize Agent
     if method == "rule-based":
         print("Using RuleBasedMetricAgent")
         agent = RuleBasedMetricAgent(root_path=str(dataset_root))
-    elif method == "rule-hp":
-        print("Using RuleBasedHighPrecisionAgent (High Precision)")
-        agent = RuleBasedHighPrecisionAgent(root_path=str(dataset_root))
     else:
         print("Using MetricAgent (default)")
         agent = MetricAgent(root_path=str(dataset_root))
@@ -71,13 +71,10 @@ def run_tests(limit=None, method="metric-agent"):
     for case in tqdm(test_cases, desc="Running Tests"):
         try:
             # Parse time range (ISO 8601 strings to datetime)
-            # Ensure naive datetime for pyarrow compatibility if parquet has naive timestamps
             start_time = pd.to_datetime(case["start_time"]).replace(tzinfo=None)
             end_time = pd.to_datetime(case["end_time"]).replace(tzinfo=None)
             
-            # Run detection
             # query_metrics returns {"observation": ..., "events": [...]}
-            # Each event has: "pod", "kpi", "pattern", "timestamps"
             analysis = agent.query_metrics(start_time, end_time)
             detected_events = analysis.get("events", [])
             
@@ -87,14 +84,12 @@ def run_tests(limit=None, method="metric-agent"):
                 pod = event.get("pod")
                 kpi = event.get("kpi")
                 pattern = event.get("pattern")
-                timestamps = event.get("timestamps", [])
                 
                 key = kpi
                 if key not in aggregated_anomalies:
                     aggregated_anomalies[key] = {
                         "patterns": set(),
-                        "components": set(),
-                        "timestamps": set()
+                        "components": set()
                     }
                 
                 if pattern:
@@ -102,16 +97,13 @@ def run_tests(limit=None, method="metric-agent"):
                 
                 if pod:
                     aggregated_anomalies[key]["components"].add(pod)
-                
-                aggregated_anomalies[key]["timestamps"].update(timestamps)
 
             formatted_detections = []
             for kpi, data in aggregated_anomalies.items():
                 formatted_detections.append({
                     "metric": kpi,
                     "pattern": sorted(list(data["patterns"])),
-                    "component": sorted(list(data["components"])),
-                    "timestamps": sorted(list(data["timestamps"]))
+                    "component": sorted(list(data["components"]))
                 })
 
             # Create result entry with only required fields
@@ -140,16 +132,13 @@ def run_tests(limit=None, method="metric-agent"):
 def evaluate_accuracy(results, test_cases):
     """
     Calculate Precision and Recall.
-    Strict Mode:
-     - Unit of measurement: (Metric, Component) pair.
-     - Precision Denominator: Total unique (Metric, Component) pairs detected (including non-root-cause components).
-     - Recall Denominator: Total predicted (Metric, RootCause) pairs (assuming Cross Product of Expected Metrics * Root Causes).
+    Unit of measurement: (Metric, Component) pair.
     """
     print("\nStarting Evaluation...")
     
     total_expected_count = 0 
     total_detected_count = 0
-    correct_detected_count = 0   # Intersection
+    correct_detected_count = 0
     
     test_case_map = {case["uuid"]: case for case in test_cases}
     
@@ -225,8 +214,9 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--limit", type=int, default=None, help="Number of test cases to run")
     parser.add_argument("--method", type=str, default="metric-agent", choices=["metric-agent", "rule-based"], help="Anomaly detection method to use")
+    parser.add_argument("--uuid", type=str, default=None, help="Run a specific test case by UUID")
     args = parser.parse_args()
     
-    run_tests(limit=args.limit, method=args.method)
+    run_tests(limit=args.limit, method=args.method, uuid=args.uuid)
 
 # python3 unit-test/metric/run_test.py --limit=5 --method=metric-agent

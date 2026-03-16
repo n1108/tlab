@@ -55,10 +55,7 @@
             "pod_network_receive_bytes",
             "pod_network_receive_packets",
             "pod_network_transmit_bytes",
-            "pod_network_transmit_packets",
-            "pod_processes",
-            "request",
-            "response"
+            "pod_network_transmit_packets"
         ]
     },
     {
@@ -88,8 +85,6 @@
             "pod_network_receive_packets",
             "pod_network_transmit_bytes",
             "pod_network_transmit_packets",
-            "request",
-            "response",
             "rrt",
             "rrt_max"
         ]
@@ -151,12 +146,6 @@
             "frontend"
         ],
         "expected_anomalies": [
-            "pod_network_receive_bytes",
-            "pod_network_receive_packets",
-            "pod_network_transmit_bytes",
-            "pod_network_transmit_packets",
-            "request",
-            "response",
             "rrt",
             "rrt_max"
         ]
@@ -171,12 +160,6 @@
             "shippingservice"
         ],
         "expected_anomalies": [
-            "pod_network_receive_bytes",
-            "pod_network_receive_packets",
-            "pod_network_transmit_bytes",
-            "pod_network_transmit_packets",
-            "request",
-            "response",
             "rrt",
             "rrt_max"
         ]
@@ -214,7 +197,6 @@
             "pod_network_receive_packets",
             "pod_network_transmit_bytes",
             "pod_network_transmit_packets",
-            "pod_processes",
             "request",
             "response"
         ]
@@ -242,7 +224,6 @@
             "adservice"
         ],
         "expected_anomalies": [
-            "adservice--stress",
             "pod_cpu_usage",
             "rrt"
         ]
@@ -295,12 +276,7 @@
             "adservice",
             "adservice-1"
         ],
-        "expected_anomalies": [
-            "GCHelper",
-            "adservice--gc",
-            "garbage collection",
-            "gc"
-        ]
+        "expected_anomalies": []
     },
     {
         "uuid": "6375ea10-98",
@@ -311,18 +287,11 @@
             "recommendationservice"
         ],
         "expected_anomalies": [
-            "client_error",
-            "client_error_ratio",
-            "error",
-            "error_ratio",
             "pod_memory_working_set_bytes",
             "pod_network_receive_bytes",
             "pod_network_receive_packets",
             "pod_network_transmit_bytes",
-            "pod_network_transmit_packets",
-            "pod_processes",
-            "request",
-            "response"
+            "pod_network_transmit_packets"
         ]
     },
     {
@@ -368,16 +337,11 @@
             "recommendationservice"
         ],
         "expected_anomalies": [
-            "client_error",
-            "client_error_ratio",
-            "error",
-            "error_ratio",
             "pod_memory_working_set_bytes",
             "pod_network_receive_bytes",
             "pod_network_receive_packets",
             "pod_network_transmit_bytes",
             "pod_network_transmit_packets",
-            "pod_processes",
             "request",
             "response"
         ]
@@ -428,7 +392,6 @@
             "pod_network_receive_packets",
             "pod_network_transmit_bytes",
             "pod_network_transmit_packets",
-            "pod_processes",
             "request",
             "response"
         ]
@@ -443,8 +406,7 @@
         ],
         "expected_anomalies": [
             "node_disk_read_bytes_total",
-            "node_disk_read_time_seconds_total",
-            "node_memory_usage_rate"
+            "node_disk_read_time_seconds_total"
         ]
     },
     {
@@ -456,7 +418,6 @@
             "adservice"
         ],
         "expected_anomalies": [
-            "adservice--stress",
             "pod_cpu_usage"
         ]
     },
@@ -518,7 +479,6 @@
             "adservice"
         ],
         "expected_anomalies": [
-            "adservice--stress",
             "pod_cpu_usage",
             "rrt_max"
         ]
@@ -534,8 +494,7 @@
         "expected_anomalies": [
             "node_disk_read_bytes_total",
             "node_disk_read_time_seconds_total",
-            "node_memory_MemAvailable_bytes",
-            "node_memory_usage_rate"
+            "node_memory_MemAvailable_bytes"
         ]
     },
     {
@@ -547,19 +506,12 @@
             "recommendationservice"
         ],
         "expected_anomalies": [
-            "client_error",
-            "client_error_ratio",
-            "error",
-            "error_ratio",
             "pod_fs_writes_bytes",
             "pod_memory_working_set_bytes",
             "pod_network_receive_bytes",
             "pod_network_receive_packets",
             "pod_network_transmit_bytes",
-            "pod_network_transmit_packets",
-            "pod_processes",
-            "request",
-            "response"
+            "pod_network_transmit_packets"
         ]
     },
     {
@@ -678,12 +630,6 @@
             "recommendationservice"
         ],
         "expected_anomalies": [
-            "pod_network_receive_bytes",
-            "pod_network_receive_packets",
-            "pod_network_transmit_bytes",
-            "pod_network_transmit_packets",
-            "request",
-            "response",
             "rrt",
             "rrt_max"
         ]
@@ -756,8 +702,6 @@
             "pod_network_receive_packets",
             "pod_network_transmit_bytes",
             "pod_network_transmit_packets",
-            "request",
-            "response",
             "rrt",
             "rrt_max"
         ]
@@ -781,8 +725,6 @@
             "pod_network_receive_packets",
             "pod_network_transmit_bytes",
             "pod_network_transmit_packets",
-            "request",
-            "response",
             "rrt",
             "rrt_max"
         ]
@@ -868,7 +810,6 @@
             "adservice"
         ],
         "expected_anomalies": [
-            "adservice-getrandomads-exception",
             "client_error",
             "client_error_ratio",
             "error",
@@ -911,9 +852,7 @@
         "root_cause_components": [
             "aiops-k8s-07"
         ],
-        "expected_anomalies": [
-            "node_memory_usage_rate"
-        ]
+        "expected_anomalies": []
     },
     {
         "uuid": "fc44280d-133",
@@ -930,8 +869,6 @@
             "pod_network_receive_packets",
             "pod_network_transmit_bytes",
             "pod_network_transmit_packets",
-            "request",
-            "response",
             "rrt",
             "rrt_max"
         ]
@@ -945,11 +882,7 @@
             "adservice",
             "adservice-1"
         ],
-        "expected_anomalies": [
-            "adservice-getRandomAds-latency",
-            "rrt",
-            "rrt_max"
-        ]
+        "expected_anomalies": []
     },
     {
         "uuid": "3400061d-135",
@@ -960,18 +893,11 @@
             "recommendationservice"
         ],
         "expected_anomalies": [
-            "client_error",
-            "client_error_ratio",
-            "error",
-            "error_ratio",
             "pod_memory_working_set_bytes",
             "pod_network_receive_bytes",
             "pod_network_receive_packets",
             "pod_network_transmit_bytes",
-            "pod_network_transmit_packets",
-            "pod_processes",
-            "request",
-            "response"
+            "pod_network_transmit_packets"
         ]
     },
     {
@@ -992,10 +918,7 @@
             "pod_network_receive_bytes",
             "pod_network_receive_packets",
             "pod_network_transmit_bytes",
-            "pod_network_transmit_packets",
-            "pod_processes",
-            "request",
-            "response"
+            "pod_network_transmit_packets"
         ]
     },
     {
@@ -1022,7 +945,6 @@
             "adservice"
         ],
         "expected_anomalies": [
-            "adservice-getrandomads-exception",
             "client_error",
             "client_error_ratio",
             "error",
@@ -1043,12 +965,7 @@
             "adservice",
             "adservice-2"
         ],
-        "expected_anomalies": [
-            "GCHelper",
-            "adservice--gc",
-            "garbage collection",
-            "gc"
-        ]
+        "expected_anomalies": []
     },
     {
         "uuid": "6f84e51d-140",
@@ -1145,7 +1062,6 @@
             "pod_network_receive_packets",
             "pod_network_transmit_bytes",
             "pod_network_transmit_packets",
-            "pod_processes",
             "request",
             "response"
         ]
@@ -1159,7 +1075,6 @@
             "recommendationservice"
         ],
         "expected_anomalies": [
-            "pod_memory_working_set_bytes",
             "pod_processes"
         ]
     },
@@ -1172,19 +1087,12 @@
             "cartservice"
         ],
         "expected_anomalies": [
-            "client_error",
-            "client_error_ratio",
-            "error",
-            "error_ratio",
             "pod_cpu_usage",
             "pod_memory_working_set_bytes",
             "pod_network_receive_bytes",
             "pod_network_receive_packets",
             "pod_network_transmit_bytes",
-            "pod_network_transmit_packets",
-            "pod_processes",
-            "request",
-            "response"
+            "pod_network_transmit_packets"
         ]
     },
     {
@@ -1210,7 +1118,6 @@
             "adservice"
         ],
         "expected_anomalies": [
-            "adservice-getrandomads-exception",
             "pod_network_receive_bytes",
             "pod_network_receive_packets",
             "pod_network_transmit_bytes",
@@ -1226,10 +1133,7 @@
             "adservice"
         ],
         "expected_anomalies": [
-            "adservice-getRandomAds-latency",
-            "response",
-            "rrt",
-            "rrt_max"
+            "response"
         ]
     },
     {
@@ -1260,7 +1164,6 @@
             "adservice-0"
         ],
         "expected_anomalies": [
-            "adservice-getrandomads-exception",
             "pod_cpu_usage",
             "pod_network_receive_bytes",
             "pod_network_receive_packets",
@@ -1276,12 +1179,7 @@
         "root_cause_components": [
             "adservice"
         ],
-        "expected_anomalies": [
-            "GCHelper",
-            "adservice--gc",
-            "garbage collection",
-            "gc"
-        ]
+        "expected_anomalies": []
     },
     {
         "uuid": "05b57997-154",
@@ -1313,7 +1211,6 @@
             "cartservice-1"
         ],
         "expected_anomalies": [
-            "pod_memory_working_set_bytes",
             "pod_processes"
         ]
     },
@@ -1331,8 +1228,6 @@
             "pod_network_receive_packets",
             "pod_network_transmit_bytes",
             "pod_network_transmit_packets",
-            "request",
-            "response",
             "rrt",
             "rrt_max"
         ]
@@ -1358,12 +1253,7 @@
             "adservice",
             "adservice-0"
         ],
-        "expected_anomalies": [
-            "GCHelper",
-            "adservice--gc",
-            "garbage collection",
-            "gc"
-        ]
+        "expected_anomalies": []
     },
     {
         "uuid": "a9c6d6c9-159",
@@ -1395,7 +1285,6 @@
             "productcatalogservice-2"
         ],
         "expected_anomalies": [
-            "pod_memory_working_set_bytes",
             "pod_processes"
         ]
     },
@@ -1408,7 +1297,6 @@
             "adservice"
         ],
         "expected_anomalies": [
-            "adservice--stress",
             "pod_cpu_usage",
             "rrt",
             "rrt_max"
@@ -1457,7 +1345,6 @@
             "adservice"
         ],
         "expected_anomalies": [
-            "adservice-getRandomAds-latency",
             "rrt",
             "rrt_max"
         ]
@@ -1472,10 +1359,6 @@
             "paymentservice-1"
         ],
         "expected_anomalies": [
-            "client_error",
-            "client_error_ratio",
-            "error",
-            "error_ratio",
             "pod_processes",
             "request",
             "response"
@@ -1490,12 +1373,7 @@
             "adservice",
             "adservice-2"
         ],
-        "expected_anomalies": [
-            "GCHelper",
-            "adservice--gc",
-            "garbage collection",
-            "gc"
-        ]
+        "expected_anomalies": []
     },
     {
         "uuid": "47fe21f6-167",
@@ -1506,7 +1384,6 @@
             "adservice"
         ],
         "expected_anomalies": [
-            "adservice-getrandomads-exception",
             "client_error",
             "error",
             "pod_network_receive_bytes",
@@ -1524,7 +1401,6 @@
             "adservice"
         ],
         "expected_anomalies": [
-            "adservice--stress",
             "pod_cpu_usage",
             "rrt",
             "rrt_max"
@@ -1580,11 +1456,7 @@
         "root_cause_components": [
             "adservice"
         ],
-        "expected_anomalies": [
-            "adservice-getRandomAds-latency",
-            "rrt",
-            "rrt_max"
-        ]
+        "expected_anomalies": []
     },
     {
         "uuid": "e6c9989b-173",
@@ -1596,12 +1468,6 @@
             "paymentservice"
         ],
         "expected_anomalies": [
-            "pod_network_receive_bytes",
-            "pod_network_receive_packets",
-            "pod_network_transmit_bytes",
-            "pod_network_transmit_packets",
-            "request",
-            "response",
             "rrt",
             "rrt_max"
         ]
@@ -1629,8 +1495,7 @@
         ],
         "expected_anomalies": [
             "node_disk_read_bytes_total",
-            "node_disk_read_time_seconds_total",
-            "node_memory_usage_rate"
+            "node_disk_read_time_seconds_total"
         ]
     },
     {
@@ -1666,12 +1531,7 @@
         "root_cause_components": [
             "adservice"
         ],
-        "expected_anomalies": [
-            "GCHelper",
-            "adservice--gc",
-            "garbage collection",
-            "gc"
-        ]
+        "expected_anomalies": []
     },
     {
         "uuid": "d0be3c58-178",
@@ -1682,7 +1542,6 @@
             "adservice"
         ],
         "expected_anomalies": [
-            "adservice--stress",
             "pod_cpu_usage",
             "rrt",
             "rrt_max"
@@ -1763,8 +1622,6 @@
             "pod_network_receive_packets",
             "pod_network_transmit_bytes",
             "pod_network_transmit_packets",
-            "request",
-            "response",
             "rrt",
             "rrt_max"
         ]
@@ -1779,15 +1636,10 @@
             "shippingservice-1"
         ],
         "expected_anomalies": [
-            "client_error",
-            "client_error_ratio",
-            "error",
-            "error_ratio",
             "pod_network_receive_bytes",
             "pod_network_receive_packets",
             "pod_network_transmit_bytes",
             "pod_network_transmit_packets",
-            "pod_processes",
             "request",
             "response"
         ]
@@ -1801,9 +1653,7 @@
             "adservice",
             "adservice-1"
         ],
-        "expected_anomalies": [
-            "adservice-getrandomads-exception"
-        ]
+        "expected_anomalies": []
     },
     {
         "uuid": "1fbef130-185",
@@ -1826,7 +1676,6 @@
             "adservice"
         ],
         "expected_anomalies": [
-            "adservice-getrandomads-exception",
             "pod_network_receive_bytes",
             "pod_network_receive_packets",
             "pod_network_transmit_bytes",
@@ -1842,7 +1691,6 @@
             "adservice"
         ],
         "expected_anomalies": [
-            "adservice-getrandomads-exception",
             "pod_network_receive_bytes",
             "pod_network_receive_packets",
             "pod_network_transmit_bytes",
@@ -1867,10 +1715,7 @@
             "pod_network_receive_bytes",
             "pod_network_receive_packets",
             "pod_network_transmit_bytes",
-            "pod_network_transmit_packets",
-            "pod_processes",
-            "request",
-            "response"
+            "pod_network_transmit_packets"
         ]
     },
     {
@@ -1890,10 +1735,7 @@
             "pod_network_receive_bytes",
             "pod_network_receive_packets",
             "pod_network_transmit_bytes",
-            "pod_network_transmit_packets",
-            "pod_processes",
-            "request",
-            "response"
+            "pod_network_transmit_packets"
         ]
     },
     {
@@ -1905,7 +1747,6 @@
             "adservice"
         ],
         "expected_anomalies": [
-            "adservice-getRandomAds-latency",
             "rrt",
             "rrt_max"
         ]
@@ -1927,10 +1768,7 @@
             "pod_network_receive_bytes",
             "pod_network_receive_packets",
             "pod_network_transmit_bytes",
-            "pod_network_transmit_packets",
-            "pod_processes",
-            "request",
-            "response"
+            "pod_network_transmit_packets"
         ]
     },
     {
@@ -1941,12 +1779,7 @@
         "root_cause_components": [
             "adservice"
         ],
-        "expected_anomalies": [
-            "GCHelper",
-            "adservice--gc",
-            "garbage collection",
-            "gc"
-        ]
+        "expected_anomalies": []
     },
     {
         "uuid": "e4ef8a12-193",
@@ -1992,10 +1825,7 @@
             "adservice-0"
         ],
         "expected_anomalies": [
-            "adservice-getRandomAds-latency",
-            "response",
-            "rrt",
-            "rrt_max"
+            "response"
         ]
     },
     {
@@ -2007,11 +1837,7 @@
             "adservice",
             "adservice-2"
         ],
-        "expected_anomalies": [
-            "adservice-getRandomAds-latency",
-            "rrt",
-            "rrt_max"
-        ]
+        "expected_anomalies": []
     },
     {
         "uuid": "de1d442d-197",
@@ -2048,7 +1874,6 @@
             "adservice-0"
         ],
         "expected_anomalies": [
-            "adservice-getRandomAds-latency",
             "rrt",
             "rrt_max"
         ]
@@ -2061,12 +1886,7 @@
         "root_cause_components": [
             "adservice"
         ],
-        "expected_anomalies": [
-            "GCHelper",
-            "adservice--gc",
-            "garbage collection",
-            "gc"
-        ]
+        "expected_anomalies": []
     },
     {
         "uuid": "5c8eb611-200",
@@ -2110,8 +1930,7 @@
             "aiops-k8s-08"
         ],
         "expected_anomalies": [
-            "node_disk_read_bytes_total",
-            "node_memory_usage_rate"
+            "node_disk_read_bytes_total"
         ]
     },
     {
@@ -2157,10 +1976,7 @@
             "pod_network_receive_bytes",
             "pod_network_receive_packets",
             "pod_network_transmit_bytes",
-            "pod_network_transmit_packets",
-            "pod_processes",
-            "request",
-            "response"
+            "pod_network_transmit_packets"
         ]
     },
     {
@@ -2172,10 +1988,7 @@
             "adservice"
         ],
         "expected_anomalies": [
-            "adservice-getRandomAds-latency",
-            "response",
-            "rrt",
-            "rrt_max"
+            "response"
         ]
     },
     {
@@ -2208,13 +2021,7 @@
             "currencyservice-2"
         ],
         "expected_anomalies": [
-            "client_error",
-            "client_error_ratio",
-            "error",
-            "error_ratio",
-            "pod_processes",
-            "request",
-            "response"
+            "pod_processes"
         ]
     },
     {
@@ -2227,10 +2034,7 @@
             "adservice-0"
         ],
         "expected_anomalies": [
-            "adservice-getRandomAds-latency",
-            "response",
-            "rrt",
-            "rrt_max"
+            "response"
         ]
     },
     {
@@ -2242,10 +2046,7 @@
             "adservice"
         ],
         "expected_anomalies": [
-            "adservice-getRandomAds-latency",
-            "response",
-            "rrt",
-            "rrt_max"
+            "response"
         ]
     },
     {
@@ -2256,12 +2057,7 @@
         "root_cause_components": [
             "adservice"
         ],
-        "expected_anomalies": [
-            "GCHelper",
-            "adservice--gc",
-            "garbage collection",
-            "gc"
-        ]
+        "expected_anomalies": []
     },
     {
         "uuid": "5a573d9d-212",
@@ -2321,7 +2117,6 @@
             "adservice"
         ],
         "expected_anomalies": [
-            "adservice--stress",
             "pod_cpu_usage",
             "rrt",
             "rrt_max"
@@ -2336,7 +2131,6 @@
             "adservice"
         ],
         "expected_anomalies": [
-            "adservice--stress",
             "pod_cpu_usage",
             "rrt",
             "rrt_max"
@@ -2363,7 +2157,6 @@
             "adservice"
         ],
         "expected_anomalies": [
-            "adservice-getrandomads-exception",
             "pod_network_receive_bytes",
             "pod_network_receive_packets",
             "pod_network_transmit_bytes",
@@ -2400,10 +2193,7 @@
             "adservice"
         ],
         "expected_anomalies": [
-            "adservice-getRandomAds-latency",
-            "response",
-            "rrt",
-            "rrt_max"
+            "response"
         ]
     },
     {
@@ -2422,7 +2212,6 @@
             "pod_network_transmit_packets",
             "request",
             "response",
-            "rrt",
             "rrt_max"
         ]
     },
@@ -2436,12 +2225,6 @@
             "checkoutservice"
         ],
         "expected_anomalies": [
-            "pod_network_receive_bytes",
-            "pod_network_receive_packets",
-            "pod_network_transmit_bytes",
-            "pod_network_transmit_packets",
-            "request",
-            "response",
             "rrt",
             "rrt_max"
         ]
@@ -2455,7 +2238,6 @@
             "adservice"
         ],
         "expected_anomalies": [
-            "adservice-getrandomads-exception",
             "pod_cpu_usage"
         ]
     },
@@ -2507,15 +2289,10 @@
             "paymentservice-1"
         ],
         "expected_anomalies": [
-            "client_error",
-            "client_error_ratio",
-            "error",
-            "error_ratio",
             "pod_network_receive_bytes",
             "pod_network_receive_packets",
             "pod_network_transmit_bytes",
             "pod_network_transmit_packets",
-            "pod_processes",
             "request",
             "response"
         ]
@@ -2591,10 +2368,7 @@
             "pod_network_receive_bytes",
             "pod_network_receive_packets",
             "pod_network_transmit_bytes",
-            "pod_network_transmit_packets",
-            "pod_processes",
-            "request",
-            "response"
+            "pod_network_transmit_packets"
         ]
     },
     {
@@ -2605,9 +2379,7 @@
         "root_cause_components": [
             "aiops-k8s-08"
         ],
-        "expected_anomalies": [
-            "node_filesystem_usage_rate"
-        ]
+        "expected_anomalies": []
     },
     {
         "uuid": "29f88351-232",
@@ -2631,10 +2403,6 @@
             "paymentservice-0"
         ],
         "expected_anomalies": [
-            "client_error",
-            "client_error_ratio",
-            "error",
-            "error_ratio",
             "pod_memory_working_set_bytes",
             "pod_processes",
             "request",
@@ -2650,12 +2418,7 @@
             "adservice",
             "adservice-0"
         ],
-        "expected_anomalies": [
-            "GCHelper",
-            "adservice--gc",
-            "garbage collection",
-            "gc"
-        ]
+        "expected_anomalies": []
     },
     {
         "uuid": "bc9db995-235",
@@ -2667,17 +2430,11 @@
             "adservice-1"
         ],
         "expected_anomalies": [
-            "client_error",
-            "client_error_ratio",
-            "error",
-            "error_ratio",
             "pod_network_receive_bytes",
             "pod_network_receive_packets",
             "pod_network_transmit_bytes",
             "pod_network_transmit_packets",
-            "pod_processes",
-            "request",
-            "response"
+            "pod_processes"
         ]
     },
     {
@@ -2689,12 +2446,7 @@
             "adservice",
             "adservice-0"
         ],
-        "expected_anomalies": [
-            "GCHelper",
-            "adservice--gc",
-            "garbage collection",
-            "gc"
-        ]
+        "expected_anomalies": []
     },
     {
         "uuid": "8c1e8ce9-237",
@@ -2706,7 +2458,6 @@
             "adservice-0"
         ],
         "expected_anomalies": [
-            "adservice--stress",
             "pod_cpu_usage",
             "rrt",
             "rrt_max"
@@ -2722,7 +2473,6 @@
             "adservice-1"
         ],
         "expected_anomalies": [
-            "adservice--stress",
             "pod_cpu_usage",
             "rrt",
             "rrt_max"
@@ -2762,7 +2512,6 @@
             "adservice"
         ],
         "expected_anomalies": [
-            "adservice-getrandomads-exception",
             "pod_network_receive_bytes",
             "pod_network_receive_packets",
             "pod_network_transmit_bytes",
@@ -2791,18 +2540,11 @@
             "emailservice-2"
         ],
         "expected_anomalies": [
-            "client_error",
-            "client_error_ratio",
-            "error",
-            "error_ratio",
             "pod_memory_working_set_bytes",
             "pod_network_receive_bytes",
             "pod_network_receive_packets",
             "pod_network_transmit_bytes",
-            "pod_network_transmit_packets",
-            "pod_processes",
-            "request",
-            "response"
+            "pod_network_transmit_packets"
         ]
     },
     {
@@ -2813,9 +2555,7 @@
         "root_cause_components": [
             "adservice"
         ],
-        "expected_anomalies": [
-            "pod_memory_working_set_bytes"
-        ]
+        "expected_anomalies": []
     },
     {
         "uuid": "98eacd31-244",
@@ -2826,19 +2566,12 @@
             "emailservice"
         ],
         "expected_anomalies": [
-            "client_error",
-            "client_error_ratio",
-            "error",
-            "error_ratio",
             "pod_cpu_usage",
             "pod_memory_working_set_bytes",
             "pod_network_receive_bytes",
             "pod_network_receive_packets",
             "pod_network_transmit_bytes",
-            "pod_network_transmit_packets",
-            "pod_processes",
-            "request",
-            "response"
+            "pod_network_transmit_packets"
         ]
     },
     {
@@ -2865,11 +2598,7 @@
             "adservice",
             "adservice-0"
         ],
-        "expected_anomalies": [
-            "adservice-getRandomAds-latency",
-            "rrt",
-            "rrt_max"
-        ]
+        "expected_anomalies": []
     },
     {
         "uuid": "741b801a-247",
@@ -2880,7 +2609,6 @@
             "emailservice"
         ],
         "expected_anomalies": [
-            "pod_memory_working_set_bytes",
             "pod_processes"
         ]
     },
@@ -2939,13 +2667,7 @@
             "paymentservice"
         ],
         "expected_anomalies": [
-            "client_error",
-            "client_error_ratio",
-            "error",
-            "error_ratio",
-            "pod_processes",
-            "request",
-            "response"
+            "pod_processes"
         ]
     },
     {
@@ -2957,7 +2679,6 @@
             "adservice"
         ],
         "expected_anomalies": [
-            "adservice-getrandomads-exception",
             "pod_cpu_usage"
         ]
     },
@@ -2971,7 +2692,6 @@
             "adservice-0"
         ],
         "expected_anomalies": [
-            "adservice--stress",
             "pod_cpu_usage",
             "rrt",
             "rrt_max"
@@ -3049,11 +2769,7 @@
             "adservice",
             "adservice-0"
         ],
-        "expected_anomalies": [
-            "adservice-getRandomAds-latency",
-            "rrt",
-            "rrt_max"
-        ]
+        "expected_anomalies": []
     },
     {
         "uuid": "f62b1785-258",
@@ -3075,10 +2791,7 @@
             "pod_network_receive_bytes",
             "pod_network_receive_packets",
             "pod_network_transmit_bytes",
-            "pod_network_transmit_packets",
-            "pod_processes",
-            "request",
-            "response"
+            "pod_network_transmit_packets"
         ]
     },
     {
@@ -3090,11 +2803,7 @@
             "adservice",
             "adservice-0"
         ],
-        "expected_anomalies": [
-            "adservice-getRandomAds-latency",
-            "rrt",
-            "rrt_max"
-        ]
+        "expected_anomalies": []
     },
     {
         "uuid": "c730da7b-260",
@@ -3143,10 +2852,7 @@
             "pod_network_receive_bytes",
             "pod_network_receive_packets",
             "pod_network_transmit_bytes",
-            "pod_network_transmit_packets",
-            "pod_processes",
-            "request",
-            "response"
+            "pod_network_transmit_packets"
         ]
     },
     {
@@ -3183,10 +2889,7 @@
             "pod_network_receive_bytes",
             "pod_network_receive_packets",
             "pod_network_transmit_bytes",
-            "pod_network_transmit_packets",
-            "pod_processes",
-            "request",
-            "response"
+            "pod_network_transmit_packets"
         ]
     },
     {
@@ -3238,7 +2941,6 @@
             "adservice-2"
         ],
         "expected_anomalies": [
-            "adservice-getrandomads-exception",
             "pod_cpu_usage"
         ]
     },
@@ -3251,7 +2953,6 @@
             "adservice"
         ],
         "expected_anomalies": [
-            "adservice--stress",
             "pod_cpu_usage"
         ]
     },
@@ -3303,12 +3004,7 @@
             "adservice",
             "adservice-0"
         ],
-        "expected_anomalies": [
-            "GCHelper",
-            "adservice--gc",
-            "garbage collection",
-            "gc"
-        ]
+        "expected_anomalies": []
     },
     {
         "uuid": "4b8e459c-272",
@@ -3379,8 +3075,7 @@
         ],
         "expected_anomalies": [
             "node_disk_read_bytes_total",
-            "node_disk_read_time_seconds_total",
-            "node_memory_usage_rate"
+            "node_disk_read_time_seconds_total"
         ]
     },
     {
@@ -3406,12 +3101,7 @@
             "adservice",
             "adservice-1"
         ],
-        "expected_anomalies": [
-            "GCHelper",
-            "adservice--gc",
-            "garbage collection",
-            "gc"
-        ]
+        "expected_anomalies": []
     },
     {
         "uuid": "825545e5-279",
@@ -3467,10 +3157,7 @@
             "pod_network_receive_bytes",
             "pod_network_receive_packets",
             "pod_network_transmit_bytes",
-            "pod_network_transmit_packets",
-            "pod_processes",
-            "request",
-            "response"
+            "pod_network_transmit_packets"
         ]
     },
     {
@@ -3538,10 +3225,7 @@
             "pod_network_receive_bytes",
             "pod_network_receive_packets",
             "pod_network_transmit_bytes",
-            "pod_network_transmit_packets",
-            "pod_processes",
-            "request",
-            "response"
+            "pod_network_transmit_packets"
         ]
     },
     {
@@ -3573,12 +3257,7 @@
             "adservice",
             "adservice-1"
         ],
-        "expected_anomalies": [
-            "GCHelper",
-            "adservice--gc",
-            "garbage collection",
-            "gc"
-        ]
+        "expected_anomalies": []
     },
     {
         "uuid": "27914c5a-288",
@@ -3590,18 +3269,11 @@
             "paymentservice-2"
         ],
         "expected_anomalies": [
-            "client_error",
-            "client_error_ratio",
-            "error",
-            "error_ratio",
             "pod_memory_working_set_bytes",
             "pod_network_receive_bytes",
             "pod_network_receive_packets",
             "pod_network_transmit_bytes",
-            "pod_network_transmit_packets",
-            "pod_processes",
-            "request",
-            "response"
+            "pod_network_transmit_packets"
         ]
     },
     {
@@ -3619,8 +3291,6 @@
             "pod_network_receive_packets",
             "pod_network_transmit_bytes",
             "pod_network_transmit_packets",
-            "request",
-            "response",
             "rrt",
             "rrt_max"
         ]
@@ -3648,7 +3318,6 @@
             "adservice"
         ],
         "expected_anomalies": [
-            "adservice--stress",
             "pod_cpu_usage",
             "rrt",
             "rrt_max"
@@ -3749,7 +3418,6 @@
             "cpu_usage",
             "memory_usage",
             "qps",
-            "tidb-tidb",
             "uptime"
         ]
     },
@@ -3763,14 +3431,12 @@
             "tidb-tikv-0"
         ],
         "expected_anomalies": [
-            "io",
             "io_util",
             "memory_usage",
             "raft_apply_wait",
             "region_pending",
             "snapshot_apply_count",
-            "store_size",
-            "tidb"
+            "store_size"
         ]
     },
     {
@@ -3782,11 +3448,8 @@
             "checkoutservice"
         ],
         "expected_anomalies": [
-            "302",
-            "dns",
             "error",
             "error_ratio",
-            "http.resp.status",
             "server_error",
             "server_error_ratio"
         ]
@@ -3800,7 +3463,6 @@
             "emailservice"
         ],
         "expected_anomalies": [
-            "port",
             "request",
             "response"
         ]
@@ -3856,13 +3518,11 @@
             "tidb-tikv-0"
         ],
         "expected_anomalies": [
-            "io",
             "io_util",
             "memory_usage",
             "raft_apply_wait",
             "region_pending",
-            "snapshot_apply_count",
-            "tidb"
+            "snapshot_apply_count"
         ]
     },
     {
@@ -3894,11 +3554,8 @@
             "checkoutservice-2"
         ],
         "expected_anomalies": [
-            "302",
-            "dns",
             "error",
             "error_ratio",
-            "http.resp.status",
             "server_error",
             "server_error_ratio"
         ]
@@ -3941,11 +3598,8 @@
             "checkoutservice-0"
         ],
         "expected_anomalies": [
-            "302",
-            "dns",
             "error",
             "error_ratio",
-            "http.resp.status",
             "server_error",
             "server_error_ratio"
         ]
@@ -4012,11 +3666,8 @@
             "checkoutservice-0"
         ],
         "expected_anomalies": [
-            "302",
-            "dns",
             "error",
-            "error_ratio",
-            "http.resp.status"
+            "error_ratio"
         ]
     },
     {
@@ -4053,11 +3704,7 @@
             "checkoutservice",
             "checkoutservice-2"
         ],
-        "expected_anomalies": [
-            "302",
-            "dns",
-            "http.resp.status"
-        ]
+        "expected_anomalies": []
     },
     {
         "uuid": "8e7a3965-336",
@@ -4069,12 +3716,10 @@
             "tidb-tikv-0"
         ],
         "expected_anomalies": [
-            "io",
             "io_util",
             "memory_usage",
             "region_pending",
-            "store_size",
-            "tidb"
+            "store_size"
         ]
     },
     {
@@ -4143,8 +3788,7 @@
         "expected_anomalies": [
             "abnormal_region_count",
             "leader_count",
-            "region_health",
-            "tidb-pd"
+            "region_health"
         ]
     },
     {
@@ -4223,7 +3867,6 @@
             "productcatalogservice"
         ],
         "expected_anomalies": [
-            "port",
             "request",
             "response"
         ]
@@ -4281,14 +3924,12 @@
         ],
         "expected_anomalies": [
             "cpu_usage",
-            "io",
             "io_util",
             "memory_usage",
             "raft_apply_wait",
             "region_pending",
             "snapshot_apply_count",
-            "store_size",
-            "tidb"
+            "store_size"
         ]
     },
     {
@@ -4302,13 +3943,11 @@
         ],
         "expected_anomalies": [
             "cpu_usage",
-            "io",
             "io_util",
             "memory_usage",
             "raft_apply_wait",
             "region_pending",
-            "store_size",
-            "tidb"
+            "store_size"
         ]
     },
     {
@@ -4320,11 +3959,7 @@
             "checkoutservice",
             "checkoutservice-2"
         ],
-        "expected_anomalies": [
-            "302",
-            "dns",
-            "http.resp.status"
-        ]
+        "expected_anomalies": []
     },
     {
         "uuid": "a87be781-351",
@@ -4337,13 +3972,11 @@
         ],
         "expected_anomalies": [
             "cpu_usage",
-            "io",
             "io_util",
             "memory_usage",
             "raft_apply_wait",
             "region_pending",
-            "store_size",
-            "tidb"
+            "store_size"
         ]
     },
     {
@@ -4370,11 +4003,8 @@
             "checkoutservice"
         ],
         "expected_anomalies": [
-            "302",
-            "dns",
             "error",
             "error_ratio",
-            "http.resp.status",
             "server_error",
             "server_error_ratio"
         ]
@@ -4403,7 +4033,6 @@
             "paymentservice"
         ],
         "expected_anomalies": [
-            "port",
             "request",
             "response"
         ]
@@ -4419,13 +4048,11 @@
         ],
         "expected_anomalies": [
             "cpu_usage",
-            "io",
             "io_util",
             "memory_usage",
             "raft_apply_wait",
             "region_pending",
-            "store_size",
-            "tidb"
+            "store_size"
         ]
     },
     {
@@ -4442,8 +4069,7 @@
             "grpc_qps",
             "io_util",
             "memory_usage",
-            "qps",
-            "tidb-tikv"
+            "qps"
         ]
     },
     {
@@ -4470,7 +4096,6 @@
             "emailservice"
         ],
         "expected_anomalies": [
-            "port",
             "request",
             "response"
         ]
@@ -4487,8 +4112,7 @@
         "expected_anomalies": [
             "abnormal_region_count",
             "leader_count",
-            "region_health",
-            "tidb-pd"
+            "region_health"
         ]
     },
     {
@@ -4503,8 +4127,7 @@
         "expected_anomalies": [
             "abnormal_region_count",
             "leader_count",
-            "region_health",
-            "tidb-pd"
+            "region_health"
         ]
     },
     {
@@ -4523,8 +4146,7 @@
             "memory_usage",
             "qps",
             "region_pending",
-            "store_size",
-            "tidb-tikv"
+            "store_size"
         ]
     },
     {
@@ -4536,7 +4158,6 @@
             "adservice"
         ],
         "expected_anomalies": [
-            "port",
             "request",
             "response"
         ]
@@ -4550,11 +4171,8 @@
             "checkoutservice"
         ],
         "expected_anomalies": [
-            "302",
-            "dns",
             "error",
             "error_ratio",
-            "http.resp.status",
             "server_error",
             "server_error_ratio"
         ]
@@ -4570,14 +4188,12 @@
         ],
         "expected_anomalies": [
             "cpu_usage",
-            "io",
             "io_util",
             "memory_usage",
             "raft_apply_wait",
             "region_pending",
             "snapshot_apply_count",
-            "store_size",
-            "tidb"
+            "store_size"
         ]
     },
     {
@@ -4604,7 +4220,6 @@
             "paymentservice"
         ],
         "expected_anomalies": [
-            "port",
             "request",
             "response"
         ]
@@ -4647,7 +4262,6 @@
             "memory_usage",
             "qps",
             "slow_query",
-            "tidb-tidb",
             "uptime"
         ]
     },
@@ -4661,11 +4275,8 @@
             "checkoutservice-2"
         ],
         "expected_anomalies": [
-            "302",
-            "dns",
             "error",
             "error_ratio",
-            "http.resp.status",
             "server_error",
             "server_error_ratio"
         ]
@@ -4707,7 +4318,6 @@
             "currencyservice"
         ],
         "expected_anomalies": [
-            "port",
             "request",
             "response"
         ]
@@ -4746,7 +4356,6 @@
             "paymentservice"
         ],
         "expected_anomalies": [
-            "port",
             "request",
             "response"
         ]
@@ -4762,14 +4371,12 @@
         ],
         "expected_anomalies": [
             "cpu_usage",
-            "io",
             "io_util",
             "memory_usage",
             "raft_apply_wait",
             "region_pending",
             "snapshot_apply_count",
-            "store_size",
-            "tidb"
+            "store_size"
         ]
     },
     {
@@ -4783,14 +4390,12 @@
         ],
         "expected_anomalies": [
             "grpc_qps",
-            "io",
             "io_util",
             "memory_usage",
             "qps",
             "raft_apply_wait",
             "region_pending",
-            "snapshot_apply_count",
-            "tidb"
+            "snapshot_apply_count"
         ]
     },
     {
@@ -4850,7 +4455,6 @@
             "memory_usage",
             "qps",
             "slow_query",
-            "tidb-tidb",
             "uptime"
         ]
     },
@@ -4863,7 +4467,6 @@
             "checkoutservice"
         ],
         "expected_anomalies": [
-            "port",
             "request",
             "response"
         ]
@@ -4892,7 +4495,6 @@
             "emailservice"
         ],
         "expected_anomalies": [
-            "port",
             "request",
             "response"
         ]
@@ -4946,8 +4548,7 @@
             "memory_usage",
             "qps",
             "region_pending",
-            "store_size",
-            "tidb-tikv"
+            "store_size"
         ]
     },
     {
@@ -4960,12 +4561,10 @@
             "tidb-tikv-0"
         ],
         "expected_anomalies": [
-            "io",
             "io_util",
             "region_pending",
             "snapshot_apply_count",
-            "store_size",
-            "tidb"
+            "store_size"
         ]
     },
     {
@@ -4979,13 +4578,11 @@
         ],
         "expected_anomalies": [
             "grpc_qps",
-            "io",
             "io_util",
             "qps",
             "region_pending",
             "snapshot_apply_count",
-            "store_size",
-            "tidb"
+            "store_size"
         ]
     },
     {
@@ -5003,8 +4600,7 @@
             "io_util",
             "memory_usage",
             "qps",
-            "region_pending",
-            "tidb-tikv"
+            "region_pending"
         ]
     },
     {
@@ -5041,11 +4637,8 @@
             "checkoutservice"
         ],
         "expected_anomalies": [
-            "302",
-            "dns",
             "error",
             "error_ratio",
-            "http.resp.status",
             "server_error",
             "server_error_ratio"
         ]
@@ -5061,14 +4654,12 @@
         ],
         "expected_anomalies": [
             "grpc_qps",
-            "io",
             "io_util",
             "memory_usage",
             "qps",
             "raft_apply_wait",
             "region_pending",
-            "store_size",
-            "tidb"
+            "store_size"
         ]
     },
     {
@@ -5080,11 +4671,8 @@
             "checkoutservice"
         ],
         "expected_anomalies": [
-            "302",
-            "dns",
             "error",
             "error_ratio",
-            "http.resp.status",
             "server_error",
             "server_error_ratio"
         ]
@@ -5098,7 +4686,6 @@
             "paymentservice"
         ],
         "expected_anomalies": [
-            "port",
             "request",
             "response"
         ]
@@ -5118,8 +4705,7 @@
             "memory_usage",
             "qps",
             "region_pending",
-            "store_size",
-            "tidb-tikv"
+            "store_size"
         ]
     },
     {
@@ -5203,8 +4789,7 @@
         "expected_anomalies": [
             "abnormal_region_count",
             "leader_count",
-            "region_health",
-            "tidb-pd"
+            "region_health"
         ]
     },
     {
@@ -5238,8 +4823,7 @@
             "memory_usage",
             "qps",
             "region_pending",
-            "store_size",
-            "tidb-tikv"
+            "store_size"
         ]
     },
     {
@@ -5290,11 +4874,8 @@
             "checkoutservice"
         ],
         "expected_anomalies": [
-            "302",
-            "dns",
             "error",
             "error_ratio",
-            "http.resp.status",
             "server_error",
             "server_error_ratio"
         ]
@@ -5309,11 +4890,8 @@
             "checkoutservice-2"
         ],
         "expected_anomalies": [
-            "302",
-            "dns",
             "error",
             "error_ratio",
-            "http.resp.status",
             "server_error",
             "server_error_ratio"
         ]
@@ -5327,7 +4905,6 @@
             "checkoutservice"
         ],
         "expected_anomalies": [
-            "port",
             "request",
             "response"
         ]
@@ -5431,7 +5008,6 @@
             "checkoutservice"
         ],
         "expected_anomalies": [
-            "port",
             "request",
             "response"
         ]
@@ -5445,7 +5021,6 @@
             "shippingservice"
         ],
         "expected_anomalies": [
-            "port",
             "request",
             "response"
         ]
@@ -5482,8 +5057,7 @@
             "memory_usage",
             "qps",
             "region_pending",
-            "store_size",
-            "tidb-tikv"
+            "store_size"
         ]
     },
     {
@@ -5530,8 +5104,7 @@
             "memory_usage",
             "qps",
             "region_pending",
-            "store_size",
-            "tidb-tikv"
+            "store_size"
         ]
     },
     {
@@ -5586,8 +5159,7 @@
             "memory_usage",
             "qps",
             "region_pending",
-            "store_size",
-            "tidb-tikv"
+            "store_size"
         ]
     },
     {
@@ -5633,8 +5205,7 @@
             "memory_usage",
             "qps",
             "region_pending",
-            "store_size",
-            "tidb-tikv"
+            "store_size"
         ]
     },
     {
@@ -5687,8 +5258,7 @@
             "memory_usage",
             "qps",
             "region_pending",
-            "store_size",
-            "tidb-tikv"
+            "store_size"
         ]
     },
     {
@@ -5745,8 +5315,7 @@
             "memory_usage",
             "qps",
             "region_pending",
-            "store_size",
-            "tidb-tikv"
+            "store_size"
         ]
     },
     {
@@ -5775,14 +5344,12 @@
         ],
         "expected_anomalies": [
             "grpc_qps",
-            "io",
             "io_util",
             "memory_usage",
             "qps",
             "raft_apply_wait",
             "region_pending",
-            "store_size",
-            "tidb"
+            "store_size"
         ]
     },
     {
@@ -5823,12 +5390,10 @@
             "tidb-tikv-0"
         ],
         "expected_anomalies": [
-            "io",
             "io_util",
             "qps",
             "raft_apply_wait",
-            "region_pending",
-            "tidb"
+            "region_pending"
         ]
     },
     {
@@ -5840,11 +5405,8 @@
             "checkoutservice"
         ],
         "expected_anomalies": [
-            "302",
-            "dns",
             "error",
-            "error_ratio",
-            "http.resp.status"
+            "error_ratio"
         ]
     },
     {
@@ -5896,11 +5458,7 @@
         "root_cause_components": [
             "checkoutservice"
         ],
-        "expected_anomalies": [
-            "302",
-            "dns",
-            "http.resp.status"
-        ]
+        "expected_anomalies": []
     },
     {
         "uuid": "e7648f7d-490",
@@ -5960,8 +5518,7 @@
             "grpc_qps",
             "io_util",
             "qps",
-            "region_pending",
-            "tidb-tikv"
+            "region_pending"
         ]
     },
     {
@@ -5977,8 +5534,7 @@
             "grpc_qps",
             "io_util",
             "qps",
-            "region_pending",
-            "tidb-tikv"
+            "region_pending"
         ]
     },
     {
@@ -5990,7 +5546,6 @@
             "adservice"
         ],
         "expected_anomalies": [
-            "port",
             "request",
             "response"
         ]
@@ -6005,8 +5560,7 @@
             "tidb-tikv-0"
         ],
         "expected_anomalies": [
-            "region_pending",
-            "tidb-tikv"
+            "region_pending"
         ]
     },
     {
@@ -6043,11 +5597,8 @@
             "checkoutservice"
         ],
         "expected_anomalies": [
-            "302",
-            "dns",
             "error",
             "error_ratio",
-            "http.resp.status",
             "server_error",
             "server_error_ratio"
         ]
@@ -6067,7 +5618,6 @@
             "failed_query_ops",
             "memory_usage",
             "qps",
-            "tidb-tidb",
             "uptime"
         ]
     },
@@ -6095,7 +5645,6 @@
             "currencyservice"
         ],
         "expected_anomalies": [
-            "port",
             "request",
             "response"
         ]
@@ -6110,12 +5659,10 @@
             "tidb-tikv-0"
         ],
         "expected_anomalies": [
-            "io",
             "io_util",
             "raft_apply_wait",
             "region_pending",
-            "snapshot_apply_count",
-            "tidb"
+            "snapshot_apply_count"
         ]
     },
     {
@@ -6143,11 +5690,8 @@
             "checkoutservice-2"
         ],
         "expected_anomalies": [
-            "302",
-            "dns",
             "error",
             "error_ratio",
-            "http.resp.status",
             "server_error",
             "server_error_ratio"
         ]
@@ -6183,7 +5727,6 @@
             "memory_usage",
             "qps",
             "slow_query",
-            "tidb-tidb",
             "uptime"
         ]
     },
@@ -6197,13 +5740,11 @@
             "tidb-tikv-0"
         ],
         "expected_anomalies": [
-            "io",
             "io_util",
             "memory_usage",
             "raft_apply_wait",
             "region_pending",
-            "snapshot_apply_count",
-            "tidb"
+            "snapshot_apply_count"
         ]
     },
     {
@@ -6293,13 +5834,11 @@
         ],
         "expected_anomalies": [
             "cpu_usage",
-            "io",
             "io_util",
             "memory_usage",
             "raft_apply_wait",
             "region_pending",
-            "store_size",
-            "tidb"
+            "store_size"
         ]
     },
     {
@@ -6348,11 +5887,8 @@
             "checkoutservice"
         ],
         "expected_anomalies": [
-            "302",
-            "dns",
             "error",
             "error_ratio",
-            "http.resp.status",
             "server_error",
             "server_error_ratio"
         ]
@@ -6425,13 +5961,11 @@
         ],
         "expected_anomalies": [
             "cpu_usage",
-            "io",
             "memory_usage",
             "qps",
             "raft_apply_wait",
             "region_pending",
-            "store_size",
-            "tidb"
+            "store_size"
         ]
     },
     {
@@ -6467,14 +6001,12 @@
         "expected_anomalies": [
             "cpu_usage",
             "grpc_qps",
-            "io",
             "io_util",
             "memory_usage",
             "qps",
             "raft_apply_wait",
             "region_pending",
-            "store_size",
-            "tidb"
+            "store_size"
         ]
     },
     {
@@ -6502,11 +6034,8 @@
             "checkoutservice-0"
         ],
         "expected_anomalies": [
-            "302",
-            "dns",
             "error",
             "error_ratio",
-            "http.resp.status",
             "server_error",
             "server_error_ratio"
         ]
@@ -6522,13 +6051,11 @@
         ],
         "expected_anomalies": [
             "cpu_usage",
-            "io",
             "io_util",
             "memory_usage",
             "region_pending",
             "snapshot_apply_count",
-            "store_size",
-            "tidb"
+            "store_size"
         ]
     },
     {
@@ -6584,8 +6111,7 @@
         "expected_anomalies": [
             "abnormal_region_count",
             "leader_count",
-            "region_health",
-            "tidb-pd"
+            "region_health"
         ]
     },
     {
@@ -6599,14 +6125,12 @@
         ],
         "expected_anomalies": [
             "grpc_qps",
-            "io",
             "io_util",
             "memory_usage",
             "qps",
             "raft_apply_wait",
             "region_pending",
-            "store_size",
-            "tidb"
+            "store_size"
         ]
     },
     {
@@ -6618,7 +6142,6 @@
             "shippingservice"
         ],
         "expected_anomalies": [
-            "port",
             "request",
             "response"
         ]
@@ -6634,13 +6157,11 @@
         ],
         "expected_anomalies": [
             "cpu_usage",
-            "io",
             "io_util",
             "memory_usage",
             "raft_apply_wait",
             "region_pending",
-            "store_size",
-            "tidb"
+            "store_size"
         ]
     },
     {
@@ -6674,8 +6195,7 @@
             "memory_usage",
             "qps",
             "region_pending",
-            "store_size",
-            "tidb-tikv"
+            "store_size"
         ]
     },
     {
@@ -6703,12 +6223,10 @@
             "tidb-tikv-0"
         ],
         "expected_anomalies": [
-            "io",
             "io_util",
             "memory_usage",
             "raft_apply_wait",
-            "region_pending",
-            "tidb"
+            "region_pending"
         ]
     },
     {
@@ -6723,12 +6241,10 @@
         "expected_anomalies": [
             "cpu_usage",
             "grpc_qps",
-            "io",
             "io_util",
             "qps",
             "raft_apply_wait",
-            "region_pending",
-            "tidb"
+            "region_pending"
         ]
     },
     {
@@ -6740,11 +6256,7 @@
             "checkoutservice",
             "checkoutservice-2"
         ],
-        "expected_anomalies": [
-            "302",
-            "dns",
-            "http.resp.status"
-        ]
+        "expected_anomalies": []
     },
     {
         "uuid": "1573cbd5-588",
@@ -6757,12 +6269,10 @@
         ],
         "expected_anomalies": [
             "cpu_usage",
-            "io",
             "io_util",
             "raft_apply_wait",
             "region_pending",
-            "store_size",
-            "tidb"
+            "store_size"
         ]
     },
     {
@@ -6788,11 +6298,7 @@
             "checkoutservice",
             "checkoutservice-1"
         ],
-        "expected_anomalies": [
-            "302",
-            "dns",
-            "http.resp.status"
-        ]
+        "expected_anomalies": []
     },
     {
         "uuid": "e025b3a4-591",
@@ -6804,12 +6310,10 @@
             "tidb-tikv-0"
         ],
         "expected_anomalies": [
-            "io",
             "qps",
             "raft_apply_wait",
             "region_pending",
-            "store_size",
-            "tidb"
+            "store_size"
         ]
     },
     {
@@ -6829,7 +6333,6 @@
             "memory_usage",
             "qps",
             "slow_query",
-            "tidb-tidb",
             "uptime"
         ]
     },
@@ -6856,12 +6359,10 @@
         ],
         "expected_anomalies": [
             "cpu_usage",
-            "io",
             "io_util",
             "memory_usage",
             "raft_apply_wait",
-            "region_pending",
-            "tidb"
+            "region_pending"
         ]
     },
     {
@@ -6873,7 +6374,6 @@
             "shippingservice"
         ],
         "expected_anomalies": [
-            "port",
             "request",
             "response"
         ]

@@ -18,11 +18,41 @@ class RuleBasedMetricAgent(MetricAgent):
     
     def __init__(self, root_path):
         super().__init__(root_path)
-        # 调试配置：手动修改此列表以只运行特定规则 [1, 2, 3]
         # self.rules = [1, 2, 3]
-        self.rules = [1, 2, 3] 
+        self.rules = [2] 
+
+        # 监控的 pod 级别（除 tidb）metrics 列表
+        self.pod_metrics_list = [
+            'pod_cpu_usage',
+            'pod_fs_writes_bytes',
+            'pod_memory_working_set_bytes',
+            'pod_network_receive_bytes',
+            'pod_network_receive_packets',
+            'pod_network_transmit_bytes',
+            'pod_network_transmit_packets',
+            'pod_processes'
+        ]
+
+        self.pods_list = [
+            'adservice-0', 'adservice-1', 'adservice-2',
+            'cartservice-0', 'cartservice-1', 'cartservice-2',
+            'currencyservice-0', 'currencyservice-1', 'currencyservice-2',
+            'productcatalogservice-0', 'productcatalogservice-1', 'productcatalogservice-2',
+            'checkoutservice-0', 'checkoutservice-1', 'checkoutservice-2',
+            'recommendationservice-0', 'recommendationservice-1', 'recommendationservice-2',
+            'shippingservice-0', 'shippingservice-1', 'shippingservice-2',
+            'emailservice-0', 'emailservice-1', 'emailservice-2',      
+            'paymentservice-0', 'paymentservice-1', 'paymentservice-2',
+            # 'tidb-pd', 'tidb-tidb','tidb-tikv'
+        ]
+
+        self.nodes_list = [
+            'aiops-k8s-01', 'aiops-k8s-02', 'aiops-k8s-03', 'aiops-k8s-04',
+            'aiops-k8s-05', 'aiops-k8s-06', 'aiops-k8s-07', 'aiops-k8s-08',
+            'k8s-master1', 'k8s-master2', 'k8s-master3'
+        ]
         
-        # 规则1忽略的指标: error/exception 等稀疏指标不适合用中位数绝对偏差(MAD)检测
+        # 规则 1 忽略的指标
         self.rule1_ignore_metrics = [
             "error_ratio",
             "client_error_ratio",
@@ -36,10 +66,10 @@ class RuleBasedMetricAgent(MetricAgent):
         
         # 指标绑定关系：如果检测到 Key 指标异常，则认为 Value 列表中的指标也异常
         self.metric_binds = {
-            "rrt": ["rrt_max"],
-            # "cpu_usage": ["cpu_load"],
+            "rrt": ["rrt_max"]
         }
 
+    # 从 Pod 名称提取服务名
     def _get_service_name(self, pod_name):
         if not isinstance(pod_name, str): return "unknown"
         parts = pod_name.rsplit('-', 1)
@@ -47,23 +77,78 @@ class RuleBasedMetricAgent(MetricAgent):
             return parts[0]
         return pod_name
 
+
+    # 测试接口，异常检测逻辑
     def query_metrics(self, start_time, end_time):
 
         df = self.load_data(start_time, end_time)
         if df.empty: return {"observation": "No data", "events": []}
             
-        events = []
+        raw_events = []
+        
+        # 预先构建 service -> pods 映射，用于后续聚合
+        service_to_pods = {}
+        for pod in self.pods_list:
+            svc = self._get_service_name(pod)
+            if svc not in service_to_pods: service_to_pods[svc] = set()
+            service_to_pods[svc].add(pod)
+
+        # 规则2：数据缺失，即在故障时间段内某个组件上找不到指标数据
+        if 2 in self.rules:
+            
+            # 将 metric 数据转换为 dict
+            records = df[['pod', 'kpi_key']].drop_duplicates().to_dict('records')
+            
+            # 获取 service->pod 和 pod->metric 映射关系
+            for row in records:
+                pod = row['pod']
+                kpi = row['kpi_key']
+                
+                if kpi not in self.pod_metrics_list:
+                    continue
+            
+            # 检测指标数据缺失。遍历所有 metric, 如果是 pod 级别数据（即部分 pod 数据正常），而有的 pod 数据缺失，则认为异常
+            for metric in self.pod_metrics_list:
+                metric_df = df[df["kpi_key"] == metric]
+                if metric_df.empty: continue
+                
+                # Calculate counts for peer comparison
+                pod_counts = metric_df["pod"].value_counts()
+                max_count = pod_counts.max()
+                
+                pods_with_data = set(metric_df["pod"].unique())
+
+                for pod in self.pods_list:
+                    if pod not in pods_with_data:
+                        svc = self._get_service_name(pod)
+                        raw_events.append({
+                            "pod": pod,
+                            "service": svc,
+                            "kpi": metric,
+                            "pattern": "missing_data",
+                            "timestamps": []
+                        })
+                    else:
+                        # 检查部分数据缺失：基于数据点数量
+                        # 理论上相同时间段内数据点数量一致。小于最大值的一半视为缺失。
+                        count = pod_counts.get(pod, 0)
+
+                        if metric == "pod_processes":
+                            print(f"{pod} processes: {count}, max: {max_count}")
+                        
+                        if max_count > 5 and count < 0.5 * max_count:
+                             svc = self._get_service_name(pod)
+                             ts = metric_df[metric_df["pod"] == pod]["time"].astype(str).tolist()
+                             raw_events.append({
+                                "pod": pod,
+                                "service": svc,
+                                "kpi": metric,
+                                "pattern": "missing_data",
+                                "timestamps": ts
+                            })
         
         for kpi, kpi_df in df.groupby("kpi_key"):
             
-            # --- Aggregation Prep ---
-            # Calculate total pods for each service in this KPI context
-            service_pods_map = {}
-            for pod in kpi_df["pod"].unique():
-                svc = self._get_service_name(pod)
-                if svc not in service_pods_map: service_pods_map[svc] = set()
-                service_pods_map[svc].add(pod)
-
             kpi_events = [] 
 
             # 规则1：对于某个metric，某个组件的平均值偏离其他组件，基于和中位数的倍数关系识别
@@ -72,7 +157,6 @@ class RuleBasedMetricAgent(MetricAgent):
                 if "client_error" in kpi or "node_" in kpi or "max" in kpi:
                     pass
                 else:
-                    # 过滤: 仅对 Golden Signals 和 资源指标 做 Rule 1 检测
                     rule1_whitelist = ["cpu", "memory", "request", "error", "rrt", "response"]
                     should_check = False
                     for w in rule1_whitelist:
@@ -139,48 +223,7 @@ class RuleBasedMetricAgent(MetricAgent):
                                 "timestamps": pod_df["time"].astype(str).tolist()
                             })
 
-            # 规则2：数据缺失 - 某组件在一段时间内中断上报 (Gap Detection)
-            gap_check_iter = kpi_df.groupby("pod") if 2 in self.rules else []
-            for pod, pod_df in gap_check_iter:
-                # 过滤关键指标，避免在非关键指标上报 Missing Data
-                # 仅检测核心黄金指标的缺失
-                if not any(x in kpi for x in ["cpu", "memory", "request", "error", "latency", "rrt"]):
-                    continue
-                pod_df = pod_df.sort_values("time")
-                times = pod_df["time"].values
-                if len(times) < 2: continue
 
-                diffs = np.diff(times)
-                
-                # 兼容 timestamp (int/float) 和 datetime64[ns]
-                if np.issubdtype(diffs.dtype, np.timedelta64):
-                    diffs_sec = diffs / np.timedelta64(1, 's')
-                else:
-                    diffs_sec = diffs
-                
-                median_interval = np.median(diffs_sec)
-                if median_interval < 1.0: 
-                    # 采样间隔过小，可能是脏数据或非周期性数据，忽略
-                    continue
-                
-                # 缺失数据的判定阈值：3倍采样间隔
-                threshold = 3.0 * median_interval
-                gap_indices = np.where(diffs_sec > threshold)[0]
-                
-                if len(gap_indices) > 0:
-                    svc = self._get_service_name(pod)
-                    for idx in gap_indices:
-                        t_start = times[idx]
-                        t_end = times[idx+1]
-                        
-                        kpi_events.append({
-                            "pod": pod,
-                            "service": svc,
-                            "kpi": kpi, 
-                            "pattern": "missing_data",
-                            "timestamps": [str(t_start), str(t_end)]
-                        })
-            
             # 规则3：使用 MetricAgent (EnsembleDetector) 检测时序异常
             if 3 in self.rules:
                 for pod, pod_df in kpi_df.groupby("pod"):
@@ -215,34 +258,49 @@ class RuleBasedMetricAgent(MetricAgent):
             if total_pods_in_kpi > 0 and (len(unique_anomalous_pods) / total_pods_in_kpi) > 0.25:
                 continue
 
-            # --- Aggregation Logic ---
-            # Group caught events by service
-            detected_service_events = {}
-            for e in kpi_events:
-                svc = e["service"]
-                if svc not in detected_service_events: detected_service_events[svc] = []
-                detected_service_events[svc].append(e)
+            raw_events.extend(kpi_events)
+
+        # --- Aggregation Logic (Now applied to ALL rules) ---
+        events = []
+        
+        # Group raw_events by (kpi, pattern, service)
+        grouped_events = {}
+        for ev in raw_events:
+            # 使用 tuple 作为 key
+            key = (ev['kpi'], ev['pattern'], ev.get('service'))
+            if key not in grouped_events: grouped_events[key] = []
+            grouped_events[key].append(ev)
+        
+        for key, ev_list in grouped_events.items():
+            kpi, pattern, svc = key
             
-            for svc, svc_events in detected_service_events.items():
-                total_count = len(service_pods_map.get(svc, []))
+            # 只对有完整 Pod 列表的服务进行聚合
+            if svc in service_to_pods:
+                expected_pods = service_to_pods[svc]
+                detected_pods = set(e['pod'] for e in ev_list)
+                
                 # Check if ALL pods for this service are anomalous
-                if total_count > 0 and len(svc_events) == total_count:
-                    # Aggregate
+                # 如果检测到的 Pod 覆盖了该服务下的所有 Pod，则聚合为服务级别异常
+                if len(expected_pods) > 0 and expected_pods.issubset(detected_pods):
+                    # Aggregate timestamps
                     all_timestamps = set()
-                    for ev in svc_events:
-                        for ts in ev["timestamps"]:
+                    for e in ev_list:
+                        for ts in e['timestamps']:
                             all_timestamps.add(ts)
                             
                     events.append({
                         "pod": svc, # Use service name as component
                         "service": svc,
                         "kpi": kpi,
-                        "pattern": svc_events[0]["pattern"],
+                        "pattern": pattern,
                         "timestamps": sorted(list(all_timestamps))
                     })
                 else:
                     # No aggregation, keep individual events
-                    events.extend(svc_events)
+                    events.extend(ev_list)
+            else:
+                # 无法聚合的组件（如 node），直接保留
+                events.extend(ev_list)
 
         # --- Metric Binding Post-processing ---
         # 如果检测到了 metric A 的异常，而 A 与 B 绑定，则为同一组件补充 B 的异常

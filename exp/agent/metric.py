@@ -164,7 +164,8 @@ class MetricAgent:
         self.detector = EnsembleDetector()
         
         # Fields to load (Optimization: Don't load everything)
-        self.apm_load_fields = ["time", "object_id", "error_ratio", "client_error_ratio", "server_error_ratio", "timeout", "rrt", "rrt_max"]
+        # Added 'response' and 'request' to the list because they are essential Golden Signals
+        self.apm_load_fields = ["time", "object_id", "error_ratio", "client_error_ratio", "server_error_ratio", "timeout", "rrt", "rrt_max", "response", "request"]
         self.infra_load_fields = ["time", "instance", "pod", "value", "kpi_key", "kubernetes_node"]
 
     def load_data(self, start: datetime, end: datetime, max_workers=4) -> pd.DataFrame:
