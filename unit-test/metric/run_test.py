@@ -127,9 +127,9 @@ def run_tests(limit=None, method="metric-agent", uuid=None):
     print(f"Test completed. Results saved to {result_file}")
     
     # Evaluate accuracy
-    evaluate_accuracy(results, test_cases)
+    evaluate_accuracy(results, test_cases, result_dir)
 
-def evaluate_accuracy(results, test_cases):
+def evaluate_accuracy(results, test_cases, result_dir=None):
     """
     Calculate Precision and Recall.
     Unit of measurement: (Metric, Component) pair.
@@ -139,6 +139,8 @@ def evaluate_accuracy(results, test_cases):
     total_expected_count = 0 
     total_detected_count = 0
     correct_detected_count = 0
+    
+    missed_anomalies_report = []
     
     test_case_map = {case["uuid"]: case for case in test_cases}
     
@@ -191,6 +193,14 @@ def evaluate_accuracy(results, test_cases):
         
         # 3. Calculate Stats for this Case
         correct_set = expected_set.intersection(detected_set)
+        missed_set = expected_set - detected_set
+        
+        if missed_set:
+            sorted_missed = sorted([{"metric": m, "component": c} for m, c in missed_set], key=lambda x: (x['metric'], x['component']))
+            missed_anomalies_report.append({
+                "uuid": uuid,
+                "missed_anomalies": sorted_missed
+            })
         
         total_expected_count += len(expected_set)
         total_detected_count += len(detected_set)
@@ -209,6 +219,12 @@ def evaluate_accuracy(results, test_cases):
     print(f"  - Recalled: {correct_detected_count}")
     print(f"  - Recall: {recall:.2f}%")
     print(f"F1 Score: {f1:.2f}")
+
+    if result_dir:
+        missed_file = result_dir / "missed_anomalies.json"
+        with open(missed_file, 'w') as f:
+            json.dump(missed_anomalies_report, f, indent=4)
+        print(f"Missed anomalies report saved to {missed_file}")
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
