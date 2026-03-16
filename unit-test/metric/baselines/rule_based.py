@@ -19,6 +19,7 @@ class RuleBasedMetricAgent(MetricAgent):
     def __init__(self, root_path):
         super().__init__(root_path)
         # 调试配置：手动修改此列表以只运行特定规则 [1, 2, 3]
+        # self.rules = [1, 2, 3]
         self.rules = [1, 2, 3] 
         
         # 规则1忽略的指标: error/exception 等稀疏指标不适合用中位数绝对偏差(MAD)检测
@@ -180,110 +181,31 @@ class RuleBasedMetricAgent(MetricAgent):
                             "timestamps": [str(t_start), str(t_end)]
                         })
             
-            # 规则3：更加细粒度的类别特定检测逻辑
-            # Instead of a single "Waveform Spike", we define specialized detectors.
+            # 规则3：使用 MetricAgent (EnsembleDetector) 检测时序异常
             if 3 in self.rules:
                 for pod, pod_df in kpi_df.groupby("pod"):
-                    series = pod_df["value"]
-                    if len(series) < 5: continue
-                    
-                    # Ignore client-side errors (4xx) and noisy node metrics and max metrics
-                    if "client_error" in kpi or "node_" in kpi or "max" in kpi: continue
-
-                    is_anomaly = False
-                    timestamps = []
-                    
-                    # --- Sub-Rule 3.1: Error Metrics (Golden Signal: Errors) ---
-                    # 严格判定：任何 > 0 的错误率都被视为异常，如果有一定持续性
-                    # Include timeout as error type
-                    if "error" in kpi or "timeout" in kpi:
-                        # 忽略极小的偶然错误 (e.g. 1/1000 requests)
-                        # Increase threshold to 2% to reduce FP
-                        threshold = 0.02 # 2% error rate
-                        anoms = series > threshold
-                        # Require persistence: at least 3 points over threshold (more strict)
-                        if anoms.sum() >= 3:
-                            timestamps = pod_df.loc[anoms, "time"].astype(str).tolist()
-                            is_anomaly = True
-
-                    # --- Sub-Rule 3.2: Latency Metrics (Golden Signal: Latency) ---
-                    # 延迟指标的 IQR 检测需要非常宽容，因为延迟本身方差大
-                    elif "rrt" in kpi or "latency" in kpi or "time" in kpi:
-                        q1 = series.quantile(0.25)
-                        q3 = series.quantile(0.75)
-                        iqr = q3 - q1
-                        median = series.median()
+                    try:
+                        # Align preprocessing with MetricAgent: Resample to 1min
+                        series = pod_df.set_index('time')['value'].sort_index()
+                        series = series.resample('1min').max().fillna(0)
                         
-                        # Use massive margin (15.0 IQR) or absolute threshold (e.g. > 300ms baseline increase)
-                        if iqr > 1e-5:
-                             # 20.0 IQR to be very very loose on variance
-                            upper = q3 + 20.0 * iqr
-                            anoms = series > upper
-                        else:
-                            # Baseline calm -> Spike > 300ms is anomalous
-                            anoms = series > (median + 0.3)
+                        result = self.detector.detect(series)
                         
-                        if anoms.any():
-                            timestamps = pod_df.loc[anoms, "time"].astype(str).tolist()
-                            is_anomaly = True
-
-                    # --- Sub-Rule 3.3: Traffic/Throughput (Golden Signal: Traffic) ---
-                    # 流量突降 (Drop) 或突增 (Spike)
-                    # 通常由 Rule 2 (Missing Data) 覆盖 Drop to 0。这里检测显著变化。
-                    elif "qps" in kpi or "bps" in kpi or "request" in kpi or "response" in kpi or "packet" in kpi:
-                        median = series.median()
-                        if median > 10.0: # Only analyze if there is meaningful traffic
-                             # Drop significantly: < 10% of median (Severe Drop)
-                             # Spike significantly: > 5x median
-                             anoms = (series < median * 0.1) | (series > median * 5.0)
-                             if anoms.any():
-                                 timestamps = pod_df.loc[anoms, "time"].astype(str).tolist()
-                                 is_anomaly = True
-
-                    # --- Sub-Rule 3.4: Saturation (CPU/Memory) ---
-                    # 资源使用率通常比较平稳。
-                    elif "cpu" in kpi or "memory" in kpi: 
-                        # Identify system components to reduce noise
-                        is_system = pod.startswith("k8s-master") or pod.startswith("tidb") or pod.startswith("aiops-k8s")
-                        
-                        # CPU/Mem Usage Rate (0-1 or 0-100)
-                        # Only flag simple overload or massive spike
-                        if "usage_rate" in kpi or "util" in kpi: 
-                            # If usage > 95% (Saturation). Stricter (99%) for system nodes.
-                            sat_thresh = 0.99 if is_system else 0.95
-                            saturation = series > sat_thresh
-                            
-                            if saturation.any():
-                                timestamps = pod_df.loc[saturation, "time"].astype(str).tolist()
-                                is_anomaly = True
-                            else:
-                                # Detection of sudden jump (e.g. 10% -> 80%)
-                                # Stricter jump for system nodes
-                                diff = series.diff().abs()
-                                jump_thresh = 0.8 if is_system else 0.5
-                                jump = diff > jump_thresh
-                                if jump.any():
-                                    timestamps = pod_df.loc[jump, "time"].astype(str).tolist()
-                                    is_anomaly = True
-                        
-                        # Handle raw bytes/cores if needed (usually less critical for saturation alarms than rate)
-                        # We skip raw value spikes here to avoid noise, assuming usage_rate covers saturation.
-
-                    # --- Sub-Rule 3.5: Fallback Generic (Strict) ---
-                    # 对于未命名的其他指标（如 I/O, Count等），忽略！
-                    # 为了提高 Precision，在 Rule-based 方法中我们只关注具备明确业务含义的黄金指标。
-                    else:
-                        pass
-
-                    if is_anomaly:
-                        svc = self._get_service_name(pod)
-                        kpi_events.append({
-                            "pod": pod,
-                            "service": svc,
-                            "kpi": kpi, 
-                            "pattern": "waveform_spike",
-                            "timestamps": timestamps
-                        })
+                        if result:
+                            # Filter out low-value noise for ratio metrics (same as MetricAgent)
+                            if "ratio" in kpi and result.get("max_val", 0) < 0.01:
+                                continue
+                                
+                            svc = self._get_service_name(pod)
+                            kpi_events.append({
+                                "pod": pod,
+                                "service": svc,
+                                "kpi": kpi, 
+                                "pattern": result["pattern"],
+                                "timestamps": [str(t) for t in result["timestamps"]]
+                            })
+                    except Exception:
+                        continue
 
             # 如果检测出太多（超过总数25%）的pod都是outlier，说明这个metric本身在不同服务间差异巨大（如network bytes）
             # 这种情况下，全局outlier检测失效，应忽略该metric
