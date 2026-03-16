@@ -9,6 +9,7 @@ INPUT_PATH = "/home/tyt21/tlab/dataset/input.json"
 GT_PATH = "/home/tyt21/tlab/dataset/groundtruth.jsonl"
 OUTPUT_DIR = "/home/tyt21/tlab/unit-test/metric"
 OUTPUT_FILE = os.path.join(OUTPUT_DIR, "test_dataset.json")
+METRIC_LIST_PATH = os.path.join(OUTPUT_DIR, "metric_list.json")
 
 def load_json(path):
     print(f"Loading {path}...")
@@ -39,6 +40,20 @@ def main():
     inputs = load_json(INPUT_PATH)
     gts = load_jsonl(GT_PATH)
     
+    # Load metric list for validation
+    valid_metrics = set()
+    if os.path.exists(METRIC_LIST_PATH):
+        print(f"Loading metric list from {METRIC_LIST_PATH}...")
+        try:
+            with open(METRIC_LIST_PATH, 'r') as f:
+                metric_data = json.load(f)
+                for item in metric_data:
+                    valid_metrics.add(item.get("metric"))
+        except Exception as e:
+            print(f"Error loading metric list: {e}")
+    else:
+        print(f"Warning: Metric list not found at {METRIC_LIST_PATH}. Skipping validation.")
+
     # Create a lookup map for groundtruth based on UUID
     gt_map = {item['uuid']: item for item in gts if 'uuid' in item}
     
@@ -77,11 +92,18 @@ def main():
         
         # Helper to safely add metrics and fix known typos
         def safe_add_metric(m):
+            candidates = []
             if m == "error_ratiopod_processes":
-                expected_metrics.add("error_ratio")
-                expected_metrics.add("pod_processes")
+                candidates = ["error_ratio", "pod_processes"]
             else:
-                expected_metrics.add(m)
+                candidates = [m]
+            
+            for metric in candidates:
+                if valid_metrics and metric not in valid_metrics:
+                    #print(f"Warning: Metric '{metric}' in UUID {uuid} is not in metric_list.json")
+                    pass
+                else:
+                    expected_metrics.add(metric)
 
         # 1. From 'key_metrics' field
         if "key_metrics" in gt:
