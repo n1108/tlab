@@ -58,8 +58,8 @@ class RuleBasedMetricAgent(MetricAgent):
         
         # 规则 1 忽略的指标
         self.rule1_ignore_metrics = [
-            "error_ratio",
-            "client_error_ratio",
+            # "error_ratio",
+            # "client_error_ratio",
             "memory_usage",
             "pod_memory_working_set_bytes",
 
@@ -155,7 +155,7 @@ class RuleBasedMetricAgent(MetricAgent):
             # 规则1：对于某个metric，某个组件的平均值偏离其他组件，基于和中位数的倍数关系识别
             if 1 in self.rules and kpi not in self.rule1_ignore_metrics:
                 # Explicitly exclude noisy metrics
-                if "client_error" in kpi or "node_" in kpi or "max" in kpi:
+                if "node_" in kpi or "max" in kpi:
                     pass
                 else:
                     rule1_whitelist = ["cpu", "memory", "request", "error", "rrt", "response", "processes"]
@@ -181,7 +181,10 @@ class RuleBasedMetricAgent(MetricAgent):
                         median_val = vals.median()
                         mad = (vals - median_val).abs().median()
                         # 使用中位数代替均值，避免单点突刺（spike）导致的误报
-                        val = pod_df["value"].median()
+                        if "error" in kpi:
+                            val = pod_df["value"].max()
+                        else:
+                            val = pod_df["value"].median()
                         
                         is_outlier = False
                     
@@ -256,7 +259,11 @@ class RuleBasedMetricAgent(MetricAgent):
             total_pods_in_kpi = kpi_df["pod"].nunique()
             # NOTICE: 仅统计 mean_outlier 类型的 pod，避免 missing_data 事件被误报为 metric 不可用
             unique_anomalous_pods = set([e["pod"] for e in kpi_events if e["pattern"] == "mean_outlier"])
-            if total_pods_in_kpi > 0 and (len(unique_anomalous_pods) / total_pods_in_kpi) > 0.25:
+            
+            # EXCEPTION: For error metrics, we expect them to be 0. If many are non-zero, it's a massive failure, not a noisy metric.
+            is_error_metric = "error" in kpi
+            
+            if not is_error_metric and total_pods_in_kpi > 0 and (len(unique_anomalous_pods) / total_pods_in_kpi) > 0.25:
                 continue
 
             raw_events.extend(kpi_events)
