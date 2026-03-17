@@ -167,7 +167,7 @@ class RuleBasedMetricAgent(MetricAgent):
                 if "node_" in kpi or "max" in kpi:
                     pass
                 else:
-                    rule1_whitelist = ["cpu", "memory", "request", "error", "rrt", "response", "processes"]
+                    rule1_whitelist = ["cpu", "memory", "request", "error", "rrt", "response", "processes", "network"]
                     should_check = False
                     for w in rule1_whitelist:
                         if w in kpi: 
@@ -258,6 +258,15 @@ class RuleBasedMetricAgent(MetricAgent):
                                 # 只有当值显著大于0时才报警
                                 if abs(val) > EPSILON:
                                     is_outlier = True
+                        
+                        # Special Rule: Network Zero Check (User Request)
+                        if not is_outlier:
+                             is_network = "network" in kpi and ("bytes" in kpi or "packets" in kpi)
+                             if is_network and abs(val) < 1e-4:
+                                  # Check if global median implies traffic should exist
+                                  global_median = kpi_df["value"].median()
+                                  if global_median > 0.05:
+                                       is_outlier = True
 
                         if is_outlier:
                             kpi_events.append({
@@ -302,9 +311,11 @@ class RuleBasedMetricAgent(MetricAgent):
             unique_anomalous_pods = set([e["pod"] for e in kpi_events if e["pattern"] == "mean_outlier"])
             
             # EXCEPTION: For error metrics, we expect them to be 0. If many are non-zero, it's a massive failure, not a noisy metric.
+            # EXCEPTION: For network, we trust our specific logic (e.g. Zero check) and accept diversity.
             is_error_metric = "error" in kpi
+            is_network_metric = "network" in kpi
             
-            if not is_error_metric and total_pods_in_kpi > 0 and (len(unique_anomalous_pods) / total_pods_in_kpi) > 0.25:
+            if not is_error_metric and not is_network_metric and total_pods_in_kpi > 0 and (len(unique_anomalous_pods) / total_pods_in_kpi) > 0.25:
                 continue
 
             raw_events.extend(kpi_events)
