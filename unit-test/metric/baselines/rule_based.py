@@ -76,7 +76,10 @@ class RuleBasedMetricAgent(MetricAgent):
         self.metric_binds = {
             "rrt": ["rrt_max"],
             "client_error_ratio": ["client_error"],
-            "error_ratio": ["error"]
+            "error_ratio": ["error"],
+            "pod_network_receive_bytes": ["pod_network_receive_packets"],
+            "pod_network_transmit_bytes": ["pod_network_transmit_packets"],
+            "request": ["response"],
         }
 
     # 从 Pod 名称提取服务名
