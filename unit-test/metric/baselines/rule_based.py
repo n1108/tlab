@@ -158,7 +158,7 @@ class RuleBasedMetricAgent(MetricAgent):
                 if "client_error" in kpi or "node_" in kpi or "max" in kpi:
                     pass
                 else:
-                    rule1_whitelist = ["cpu", "memory", "request", "error", "rrt", "response"]
+                    rule1_whitelist = ["cpu", "memory", "request", "error", "rrt", "response", "processes"]
                     should_check = False
                     for w in rule1_whitelist:
                         if w in kpi: 
