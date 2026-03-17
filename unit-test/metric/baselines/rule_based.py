@@ -34,7 +34,11 @@ class RuleBasedMetricAgent(MetricAgent):
 
             # pod 级别和 service 级别均存在
             'request',
-            'response'
+            'response',
+            'client_error', 
+            'client_error_ratio', 
+            'error', 
+            'error_ratio'
         ]
 
         self.pods_list = [
@@ -70,7 +74,9 @@ class RuleBasedMetricAgent(MetricAgent):
         
         # 指标绑定关系：如果检测到 Key 指标异常，则认为 Value 列表中的指标也异常
         self.metric_binds = {
-            "rrt": ["rrt_max"]
+            "rrt": ["rrt_max"],
+            "client_error_ratio": ["client_error"],
+            "error_ratio": ["error"]
         }
 
     # 从 Pod 名称提取服务名
@@ -172,9 +178,41 @@ class RuleBasedMetricAgent(MetricAgent):
                         if not should_check: break
                         service_name = self._get_service_name(pod)
                         
-                        # Compare against ALL other pods (Global Outlier)
-                        # This works well if most services are healthy/fast
-                        other_pods = kpi_df[kpi_df["pod"] != pod]
+                        # 改为 Service-Internal Peer Comparison 优先
+                        # 只对比同一个 Service 下的其他 Pod
+                        
+                        same_service_pods = kpi_df[kpi_df["pod"].str.startswith(service_name)]
+                        other_pods_internal = same_service_pods[same_service_pods["pod"] != pod]
+
+                        use_global = False
+                        
+                        if other_pods_internal.empty:
+                            use_global = True
+                        else:
+                            # 1. 检查是否存在同类对比
+                            vals_int = other_pods_internal["value"]
+                            mad_int = (vals_int - vals_int.median()).abs().median()
+                            
+                            # 2. 如果同类对比完全一致 (MAD=0)，可能是正常基准，也可能是集体故障
+                            # 此时我们可以引入 Global Median 来帮忙判断
+                            # 如果 Global Median 显著不同，则可能是一个集体故障 (或者配置不同)
+                            if mad_int < 1e-4:
+                                global_others = kpi_df[kpi_df["pod"] != pod]
+                                if not global_others.empty:
+                                    g_med = global_others["value"].median()
+                                    p_med = vals_int.median()
+                                    
+                                    # 如果整个服务的 Pod 值都偏离了全局中位数 (e.g. processes=10 vs global=1)
+                                    # 且全局也不是很乱 (Global MAD 也是可控的，这里简化处理)
+                                    # 那么切换到 Global 视角
+                                    if abs(p_med - g_med) > max(g_med, 0.1) * 2.0: # 偏差很大
+                                        use_global = True
+
+                        if use_global:
+                             other_pods = kpi_df[kpi_df["pod"] != pod]
+                        else:
+                             other_pods = other_pods_internal
+                        
                         if other_pods.empty: continue
                         
                         vals = other_pods["value"]
