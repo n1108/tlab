@@ -154,7 +154,7 @@ def append_score(method: str, score: float, limit: int | None) -> None:
 			"time": now,
 			"method": method,
 			"top_n": limit_text,
-			"score": f"{score:.2f}",
+			"score": f"{score:.4f}",
 		}]
 	)
 
@@ -191,7 +191,7 @@ def main() -> None:
 
 	score = evaluate(args.method, args.limit)
 	append_score(args.method, score, args.limit)
-	print(f"method={args.method}, top_n={args.limit if args.limit is not None else 'all'}, score={score:.2f}")
+	print(f"method={args.method}, top_n={args.limit if args.limit is not None else 'all'}, score={score:.4f}")
 
 
 if __name__ == "__main__":
