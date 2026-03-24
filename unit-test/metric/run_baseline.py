@@ -99,6 +99,11 @@ def run_tests(limit=None, method="1", uuid=None):
 
     metric_agent = MetricAgent(str(dataset_root))
     records = []
+    uuid_order = {
+        str(case.get("uuid", "")).strip(): idx
+        for idx, case in enumerate(test_cases)
+        if str(case.get("uuid", "")).strip()
+    }
 
     for case in tqdm(test_cases, desc=f"Running baseline-{method}"):
         case_uuid = str(case.get("uuid", "")).strip()
@@ -122,7 +127,14 @@ def run_tests(limit=None, method="1", uuid=None):
 
     result_df = pd.DataFrame(records, columns=["uuid", "component", "metric"])
     if not result_df.empty:
-        result_df = result_df.drop_duplicates().sort_values(["uuid", "component", "metric"]).reset_index(drop=True)
+        result_df = result_df.drop_duplicates()
+        result_df["_uuid_order"] = result_df["uuid"].map(uuid_order).fillna(len(uuid_order))
+        result_df = (
+            result_df
+            .sort_values(["_uuid_order", "component", "metric"])
+            .drop(columns=["_uuid_order"])
+            .reset_index(drop=True)
+        )
 
     output_dir = PROJECT_ROOT / "unit-test/metric/results"
     output_dir.mkdir(parents=True, exist_ok=True)
