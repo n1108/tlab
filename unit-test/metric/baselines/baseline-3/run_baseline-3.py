@@ -11,13 +11,7 @@ from typing import Dict, Tuple
 import numpy as np
 import pandas as pd
 from scipy import stats
-
-try:
-    from statsmodels.tsa.seasonal import STL
-    HAS_STL = True
-except Exception:
-    STL = None
-    HAS_STL = False
+from statsmodels.tsa.seasonal import STL
 
 from tqdm import tqdm
 
@@ -54,23 +48,19 @@ class HybridMetricDetector:
     """
 
     def __init__(self):
-        self.k_sigma = 3.0
-        self.p_value_thresh = 0.01
-        self.cohen_d_thresh = 0.8
-        self.z_bias_thresh = 2.5
-        self.var_ratio_thresh = 2.0
-        self.tail_ratio_thresh = 0.10
-
-        if not HAS_STL:
-            warnings.warn(
-                "statsmodels is not installed. STL method is disabled in baseline-3."
-            )
-            logger.warning("statsmodels missing: STL method disabled. Install statsmodels for full baseline-3.")
+        # Relaxed parameters for higher recall
+        self.k_sigma = 2.5  # Reduced from 3.0 for more sensitivity
+        self.p_value_thresh = 0.05  # Increased from 0.01 for easier significance
+        self.cohen_d_thresh = 0.5  # Reduced from 0.8 for smaller effect sizes
+        self.z_bias_thresh = 2.0  # Reduced from 2.5 for more sensitivity
+        self.var_ratio_thresh = 1.5  # Reduced from 2.0 for variance changes
+        self.tail_ratio_thresh = 0.05  # Reduced from 0.10 for fewer required outliers
 
     def _split_windows(self, series: pd.Series) -> Tuple[np.ndarray, np.ndarray]:
         values = series.values.astype(float)
         n = len(values)
-        split = max(5, int(n * 0.4))
+        # Use 50-50 split for more balanced detection (changed from 40-60)
+        split = max(3, int(n * 0.5))
         baseline = values[:split]
         detect = values[split:]
         return baseline, detect
@@ -88,13 +78,24 @@ class HybridMetricDetector:
 
     def _method_stat_test(self, baseline: np.ndarray, detect: np.ndarray) -> bool:
         try:
-            p_u = stats.mannwhitneyu(baseline, detect, alternative="two-sided").pvalue
-            p_t = stats.ttest_ind(baseline, detect, equal_var=False, nan_policy="omit").pvalue
+            # Check variance to avoid precision loss in nearly identical data
+            if np.std(baseline) < 1e-10 or np.std(detect) < 1e-10:
+                return False
+            
+            # Check if data has sufficient unique values (relaxed)
+            if len(np.unique(baseline)) < 2 or len(np.unique(detect)) < 2:
+                return False
+                
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore", RuntimeWarning)
+                p_u = stats.mannwhitneyu(baseline, detect, alternative="two-sided").pvalue
+                p_t = stats.ttest_ind(baseline, detect, equal_var=False, nan_policy="omit").pvalue
+            
+            effect = self._cohen_d(baseline, detect)
+            # Relaxed condition: either statistical test significance OR effect size
+            return (p_u < self.p_value_thresh) or (p_t < self.p_value_thresh) or (effect >= self.cohen_d_thresh)
         except Exception:
             return False
-
-        effect = self._cohen_d(baseline, detect)
-        return ((p_u < self.p_value_thresh) or (p_t < self.p_value_thresh)) and effect >= self.cohen_d_thresh
 
     def _method_threshold(self, baseline: np.ndarray, detect: np.ndarray) -> bool:
         mean_b = float(np.mean(baseline))
@@ -120,10 +121,7 @@ class HybridMetricDetector:
         return (z_bias >= self.z_bias_thresh) or (var_ratio >= self.var_ratio_thresh)
 
     def _method_stl(self, series: pd.Series) -> bool:
-        if not HAS_STL:
-            return False
-
-        if len(series) < 24:
+        if len(series) < 18:  # Reduced from 24 for more coverage
             return False
 
         period = max(4, min(12, len(series) // 4))
@@ -133,23 +131,25 @@ class HybridMetricDetector:
         try:
             result = STL(series.values.astype(float), period=period, robust=True).fit()
             resid = pd.Series(result.resid)
-            tail = resid.iloc[max(1, int(0.7 * len(resid))):]
+            # Use larger portion of residuals for better sensitivity
+            tail_start = max(1, int(0.5 * len(resid)))  # Changed from 0.7 to 0.5
+            tail = resid.iloc[tail_start:]
             if tail.empty:
                 return False
             z = (tail - tail.mean()) / max(tail.std(ddof=0), 1e-6)
-            return bool((np.abs(z) > 3.0).any())
+            return bool((np.abs(z) > 2.5).any())  # Reduced from 3.0 for more sensitivity
         except Exception:
             return False
 
     def detect(self, series: pd.Series) -> MethodResult:
-        if len(series) < 12:
+        if len(series) < 10:  # Reduced from 12 for more coverage
             return MethodResult(False, False, False, False, 0)
 
         if float(series.std()) <= 1e-12:
             return MethodResult(False, False, False, False, 0)
 
         baseline, detect = self._split_windows(series)
-        if len(detect) < 5:
+        if len(detect) < 3:  # Reduced from 5 for more sensitivity
             return MethodResult(False, False, False, False, 0)
 
         s1 = self._method_stat_test(baseline, detect)
@@ -162,10 +162,9 @@ class HybridMetricDetector:
 
     @staticmethod
     def is_anomaly(result: MethodResult) -> bool:
-        votes = sum([result.stat_test, result.threshold, result.zvar, result.stl])
-        if result.stat_test and result.stl:
-            return True
-        return votes >= 2 and result.weighted_score >= 3
+        # Union strategy as per README: any method detecting anomaly is sufficient
+        # This maximizes recall by catching all possible anomalies
+        return result.stat_test or result.threshold or result.zvar or result.stl
 
 
 def _parse_iso_utc(time_str: str) -> datetime:
