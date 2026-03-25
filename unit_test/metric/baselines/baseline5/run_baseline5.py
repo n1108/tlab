@@ -233,7 +233,6 @@ def _detect_error_rate_threshold_events(df: pd.DataFrame) -> list[dict]:
     采用固定阈值 + 突变检测混合规则
     
     注意：为了匹配评分标准，当检测到 ratio 指标异常时，同时输出对应的非 ratio 指标
-    （仅当数据中不存在 base 指标时才进行映射）
     """
     raw_events: list[dict] = []
     
@@ -249,12 +248,12 @@ def _detect_error_rate_threshold_events(df: pd.DataFrame) -> list[dict]:
         "server_error_ratio": "server_error"
     }
     
-    # 错误率绝对阈值
-    ERROR_RATIO_THRESHOLD = 5.0  # 5%
-    # 错误计数阈值
-    ERROR_COUNT_THRESHOLD = 10
-    # 突变检测：相比基线增长倍数
-    ERROR_SURGE_RATIO = 3.0
+    # 错误率绝对阈值（降低阈值，更激进）
+    ERROR_RATIO_THRESHOLD = 2.0
+    # 错误计数阈值（降低）
+    ERROR_COUNT_THRESHOLD = 5
+    # 突变检测：相比基线增长倍数（降低）
+    ERROR_SURGE_RATIO = 2.0
     
     # 首先检查是否存在 error/client_error 指标（没有 ratio 后缀）
     base_metrics_found = set()
@@ -275,23 +274,20 @@ def _detect_error_rate_threshold_events(df: pd.DataFrame) -> list[dict]:
                 continue
             
             is_anomaly = False
-            anomaly_reason = ""
             
-            # 策略 1: 绝对阈值检测
+            # 策略 1: 绝对阈值检测（降低阈值）
             if "ratio" in kpi:
                 # 错误率指标
                 max_ratio = values.max()
                 if max_ratio > ERROR_RATIO_THRESHOLD:
                     is_anomaly = True
-                    anomaly_reason = f"error_ratio > {ERROR_RATIO_THRESHOLD}%"
             else:
                 # 错误计数指标
                 max_count = values.max()
                 if max_count > ERROR_COUNT_THRESHOLD:
                     is_anomaly = True
-                    anomaly_reason = f"error_count > {ERROR_COUNT_THRESHOLD}"
             
-            # 策略 2: 突变检测（与同服务其他 Pod 对比）
+            # 策略 2: 突变检测（与同服务其他 Pod 对比，降低要求）
             if not is_anomaly:
                 same_service_pods = kpi_df[kpi_df["pod"].str.startswith(service_name)]
                 other_pods = same_service_pods[same_service_pods["pod"] != pod]
@@ -303,20 +299,26 @@ def _detect_error_rate_threshold_events(df: pd.DataFrame) -> list[dict]:
                     # 如果当前值是同服务其他 Pod 中位数的 N 倍以上
                     if other_median > 0 and current_val > other_median * ERROR_SURGE_RATIO:
                         is_anomaly = True
-                        anomaly_reason = f"error surge: {current_val:.2f} vs peer median {other_median:.2f}"
             
-            # 策略 3: 从 0 到非 0 的突变（适用于平时为 0 的错误计数）
+            # 策略 3: 从 0 到非 0 的突变（更宽松）
             if not is_anomaly:
                 non_zero_count = (values > 0).sum()
                 if non_zero_count > 0:
                     zero_count = (values == 0).sum()
                     total_count = len(values)
-                    if zero_count > total_count * 0.8 and non_zero_count >= 3:
+                    if zero_count > total_count * 0.5 and non_zero_count >= 2:
+                        # 50% 时间为 0，但有至少 2 个非零点（从 80%/3 放宽到 50%/2）
                         is_anomaly = True
-                        anomaly_reason = f"error from zero: {non_zero_count} spikes"
+            
+            # 策略 4: 只要有非零错误值就标记（最激进的兜底策略）
+            if not is_anomaly:
+                if "error" in kpi.lower():
+                    # 对于 error 类指标，只要有任何非零值就认为是异常
+                    if (values > 0).any():
+                        is_anomaly = True
             
             if is_anomaly:
-                # 如果是 ratio 指标异常，且数据中没有对应的 base 指标，则添加 base 指标
+                # 如果是 ratio 指标异常，且数据中不存在对应的 base 指标，则添加 base 指标
                 detected_metrics = [kpi]
                 if kpi in RATIO_TO_BASE:
                     base_metric = RATIO_TO_BASE[kpi]
@@ -332,7 +334,6 @@ def _detect_error_rate_threshold_events(df: pd.DataFrame) -> list[dict]:
                             "kpi": detected_metric,
                             "pattern": "error_threshold",
                             "timestamps": pod_df["time"].astype(str).tolist(),
-                            "reason": anomaly_reason,
                         }
                     )
     
