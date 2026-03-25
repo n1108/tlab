@@ -11,6 +11,7 @@
 
 import argparse
 import json
+import logging
 import re
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -19,6 +20,12 @@ from typing import Dict, List, Set, Tuple
 import pandas as pd
 from pandas.errors import EmptyDataError
 
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [%(levelname)s] %(message)s",
+)
+logger = logging.getLogger(__name__)
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 DATASET_FILE = PROJECT_ROOT / "unit_test/metric/data/metric_dataset.json"
@@ -105,7 +112,7 @@ def _component_matches(pred_component: str, expected_components: Set[str]) -> bo
 	return len(pred_aliases & expected_aliases) > 0
 
 
-def evaluate(method: str, limit: int | None = None) -> float:
+def evaluate(method: str, limit: int | None = None) -> tuple[float, pd.DataFrame]:
 	dataset = _load_metric_dataset()
 	if limit is not None:
 		if limit <= 0:
@@ -117,6 +124,7 @@ def evaluate(method: str, limit: int | None = None) -> float:
 
 	correct_metric_count = 0
 	total_metric_count = 0
+	missed_anomalies: list[dict] = []
 
 	for item in dataset:
 		uuid = str(item.get("uuid", "")).strip()
@@ -132,16 +140,32 @@ def evaluate(method: str, limit: int | None = None) -> float:
 
 		detected_pairs = pred_map.get(uuid, set())
 		correct_metrics_for_uuid: Set[str] = set()
+		
+		# 找出所有被正确检测的 component.metric 组合
+		detected_metrics_for_uuid: Set[str] = set()
 		for component, metric in detected_pairs:
-			if _component_matches(component, components) and metric in metrics:
-				correct_metrics_for_uuid.add(metric)
+			if _component_matches(component, components):
+				detected_metrics_for_uuid.add(metric)
+				if metric in metrics:
+					correct_metrics_for_uuid.add(metric)
+		
+		# 记录漏报的异常
+		for expected_metric in metrics:
+			if expected_metric not in detected_metrics_for_uuid:
+				# 找到对应的组件 (可能有多个，取第一个匹配的)
+				for expected_component in components:
+					missed_anomalies.append({
+						"uuid": uuid,
+						"component.metric": f"{expected_component}.{expected_metric}"
+					})
+					break  # 每个指标只记录一次
 
 		correct_metric_count += len(correct_metrics_for_uuid)
 
 	if total_metric_count == 0:
-		return 0.0
+		return 0.0, pd.DataFrame(missed_anomalies)
 
-	return correct_metric_count / total_metric_count
+	return correct_metric_count / total_metric_count, pd.DataFrame(missed_anomalies)
 
 
 def append_score(method: str, score: float, limit: int | None) -> None:
@@ -189,8 +213,18 @@ def main() -> None:
 	)
 	args = parser.parse_args()
 
-	score = evaluate(args.method, args.limit)
+	score, missed_df = evaluate(args.method, args.limit)
 	append_score(args.method, score, args.limit)
+	
+	# 保存漏报异常到 CSV
+	missed_file = RESULT_DIR / "missed_anomalies.csv"
+	if not missed_df.empty:
+		missed_df.to_csv(missed_file, index=False)
+		logger.info(f"saved {len(missed_df)} missed anomalies to {missed_file}")
+	else:
+		missed_file.unlink(missing_ok=True)
+		logger.info("no missed anomalies")
+	
 	print(f"method={args.method}, top_n={args.limit if args.limit is not None else 'all'}, score={score:.4f}")
 
 
