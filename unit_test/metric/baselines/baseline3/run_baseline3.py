@@ -177,7 +177,7 @@ def _parse_iso_utc(time_str: str) -> datetime:
 
 
 def _load_test_cases() -> list:
-    dataset_path = PROJECT_ROOT / "unit-test/metric/data/metric_dataset.json"
+    dataset_path = PROJECT_ROOT / "unit_test/metric/data/metric_dataset.json"
     if not dataset_path.exists():
         raise FileNotFoundError(f"test dataset not found: {dataset_path}")
 
@@ -191,7 +191,8 @@ def _load_test_cases() -> list:
 
 
 def run_tests(limit=None, uuid=None):
-    from exp.agent.metric import MetricAgent
+    sys.path.insert(0, str(PROJECT_ROOT))
+    from unit_test.metric.baselines.baseline3.metric import MetricAgent
 
     dataset_root = PROJECT_ROOT / "dataset"
     if not dataset_root.exists():

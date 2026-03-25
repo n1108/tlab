@@ -2,8 +2,9 @@ import argparse
 import json
 import logging
 import sys
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
+from typing import Dict, Tuple
 
 import numpy as np
 import pandas as pd
@@ -16,13 +17,11 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-BASELINE2_DIR = Path(__file__).resolve().parent
+BASELINE4_DIR = Path(__file__).resolve().parent
 PROJECT_ROOT = Path(__file__).resolve().parents[4]
 
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
-if str(BASELINE2_DIR) not in sys.path:
-    sys.path.insert(0, str(BASELINE2_DIR))
 
 
 def _parse_iso_utc(time_str: str) -> datetime:
@@ -35,7 +34,7 @@ def _parse_iso_utc(time_str: str) -> datetime:
 
 
 def _load_test_cases() -> list:
-    dataset_path = PROJECT_ROOT / "unit-test/metric/data/metric_dataset.json"
+    dataset_path = PROJECT_ROOT / "unit_test/metric/data/metric_dataset.json"
     if not dataset_path.exists():
         raise FileNotFoundError(f"test dataset not found: {dataset_path}")
 
@@ -48,38 +47,50 @@ def _load_test_cases() -> list:
     return data
 
 
-def _load_bocpd_func():
-    try:
-        from anomaly_detection import bocpd
-    except Exception as exc:
-        raise ImportError("failed to import bocpd from anomaly_detection.py") from exc
-
-    logger.info("using bocpd from %s", BASELINE2_DIR / "anomaly_detection.py")
-    return bocpd
-
-
-def _run_series_bocpd(bocpd_func, series: pd.Series, metric_name: str) -> bool:
-    if len(series) < 5:
-        return False
-
-    if series.std() == 0:
-        return False
-
-    input_df = pd.DataFrame({
-        "time": np.arange(len(series), dtype=np.int64),
-        str(metric_name): series.values,
-    })
-
-    try:
-        anomalies = bocpd_func(input_df)
-        return anomalies is not None and len(anomalies) > 0
-    except Exception as exc:
-        logger.debug("bocpd failed on metric=%s: %s", metric_name, exc)
-        return False
+def _trim_extremes(values: np.ndarray) -> np.ndarray:
+    clean = values[np.isfinite(values)]
+    if clean.size == 0:
+        return clean
+    if clean.size <= 4:
+        return clean
+    sorted_vals = np.sort(clean)
+    return sorted_vals[2:-2]
 
 
-def run_tests(limit=None, uuid=None):
-    from exp.agent.metric import MetricAgent
+def _calc_p50_p99(values: np.ndarray) -> Tuple[float, float] | None:
+    trimmed = _trim_extremes(values)
+    if trimmed.size == 0:
+        return None
+    p50 = float(np.percentile(trimmed, 50))
+    p99 = float(np.percentile(trimmed, 99))
+    return p50, p99
+
+
+def _symmetric_ratio(a: float, b: float) -> float:
+    denom = (abs(a) + abs(b)) / 2.0
+    if denom <= 1e-12:
+        return 0.0
+    return abs(a - b) / denom
+
+
+def _build_stats(df: pd.DataFrame) -> Dict[Tuple[str, str], Tuple[float, float]]:
+    stats_map: Dict[Tuple[str, str], Tuple[float, float]] = {}
+    if df.empty:
+        return stats_map
+
+    for (component, metric), group in df.groupby(["pod", "kpi_key"]):
+        values = group["value"].to_numpy(dtype=float)
+        stat = _calc_p50_p99(values)
+        if stat is None:
+            continue
+        stats_map[(str(component), str(metric))] = stat
+
+    return stats_map
+
+
+def run_tests(limit=None, uuid=None, threshold=0.05):
+    sys.path.insert(0, str(PROJECT_ROOT))
+    from unit_test.metric.baselines.baseline1.metric import MetricAgent
 
     dataset_root = PROJECT_ROOT / "dataset"
     if not dataset_root.exists():
@@ -101,11 +112,10 @@ def run_tests(limit=None, uuid=None):
         if str(case.get("uuid", "")).strip()
     }
 
-    bocpd_func = _load_bocpd_func()
-    loader_agent = MetricAgent(str(dataset_root))
-
+    metric_agent = MetricAgent(str(dataset_root))
     records = []
-    for case in tqdm(test_cases, desc="Running baseline-2"):
+
+    for case in tqdm(test_cases, desc="Running baseline-4"):
         case_uuid = str(case.get("uuid", "")).strip()
         start_str = case.get("start_time")
         end_str = case.get("end_time")
@@ -115,34 +125,45 @@ def run_tests(limit=None, uuid=None):
             continue
 
         try:
-            start_time = _parse_iso_utc(str(start_str))
-            end_time = _parse_iso_utc(str(end_str))
+            fault_start = _parse_iso_utc(str(start_str))
+            fault_end = _parse_iso_utc(str(end_str))
         except Exception as exc:
             logger.warning("skip %s due to invalid time range: %s", case_uuid, exc)
             continue
 
+        if fault_end <= fault_start:
+            logger.warning("skip %s due to non-positive fault window", case_uuid)
+            continue
+
+        duration = fault_end - fault_start
+        normal_end = fault_start
+        normal_start = normal_end - duration
+
         try:
-            df = loader_agent.load_data(start_time, end_time)
+            normal_df = metric_agent.load_data(normal_start, normal_end)
+            fault_df = metric_agent.load_data(fault_start, fault_end)
         except Exception as exc:
             logger.warning("load_data failed for %s: %s", case_uuid, exc)
             continue
 
-        if df.empty:
-            continue
+        normal_stats = _build_stats(normal_df)
+        fault_stats = _build_stats(fault_df)
+        common_keys = set(normal_stats.keys()) & set(fault_stats.keys())
 
-        for (component, metric), group in df.groupby(["pod", "kpi_key"]):
-            try:
-                series = group.set_index("time")["value"].sort_index()
-                series = series.resample("1min").max().fillna(0)
-            except Exception:
-                continue
+        for component, metric in common_keys:
+            normal_p50, normal_p99 = normal_stats[(component, metric)]
+            fault_p50, fault_p99 = fault_stats[(component, metric)]
 
-            if _run_series_bocpd(bocpd_func, series, str(metric)):
+            p50_ratio = _symmetric_ratio(fault_p50, normal_p50)
+            p99_ratio = _symmetric_ratio(fault_p99, normal_p99)
+
+            # 双重验证：P50 + P99 均超过阈值才判异常
+            if p50_ratio >= threshold and p99_ratio >= threshold:
                 records.append(
                     {
                         "uuid": case_uuid,
-                        "component": str(component),
-                        "metric": str(metric),
+                        "component": component,
+                        "metric": metric,
                     }
                 )
 
@@ -159,7 +180,7 @@ def run_tests(limit=None, uuid=None):
 
     output_dir = PROJECT_ROOT / "unit-test/metric/results"
     output_dir.mkdir(parents=True, exist_ok=True)
-    output_file = output_dir / "result_baseline_2.csv"
+    output_file = output_dir / "result_baseline_4.csv"
     result_df.to_csv(output_file, index=False)
     logger.info("saved %d anomaly rows to %s", len(result_df), output_file)
 
@@ -168,8 +189,9 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--limit", type=int, default=None, help="Number of test cases to run")
     parser.add_argument("--uuid", type=str, default=None, help="Run a specific test case by UUID")
+    parser.add_argument("--threshold", type=float, default=0.05, help="Symmetric ratio threshold")
     args = parser.parse_args()
 
-    run_tests(limit=args.limit, uuid=args.uuid)
+    run_tests(limit=args.limit, uuid=args.uuid, threshold=args.threshold)
 
-# python3 unit-test/metric/baselines/baseline-2/run_baseline-2.py --limit=5
+# python3 unit-test/metric/baselines/baseline-4/run_baseline-4.py --limit=5

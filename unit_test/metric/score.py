@@ -21,8 +21,8 @@ from pandas.errors import EmptyDataError
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
-DATASET_FILE = PROJECT_ROOT / "unit-test/metric/data/metric_dataset.json"
-RESULT_DIR = PROJECT_ROOT / "unit-test/metric/results"
+DATASET_FILE = PROJECT_ROOT / "unit_test/metric/data/metric_dataset.json"
+RESULT_DIR = PROJECT_ROOT / "unit_test/metric/results"
 SCORE_FILE = RESULT_DIR / "score.csv"
 
 
