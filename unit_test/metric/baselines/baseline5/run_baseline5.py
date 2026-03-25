@@ -51,13 +51,6 @@ PODS_LIST = [
     "paymentservice-0", "paymentservice-1", "paymentservice-2",
 ]
 
-RULE1_IGNORE_METRICS = [
-    "memory_usage",
-    "pod_memory_working_set_bytes",
-    "node_disk_written_bytes_total",
-    "pod_fs_writes_bytes",
-]
-
 
 def _parse_iso_utc(time_str: str) -> datetime:
     if not time_str:
@@ -145,16 +138,6 @@ def _detect_rule1_mean_outlier_events(df: pd.DataFrame) -> list[dict]:
         return raw_events
 
     for kpi, kpi_df in df.groupby("kpi_key"):
-        if kpi in RULE1_IGNORE_METRICS:
-            continue
-
-        if "node_" in kpi or "max" in kpi:
-            continue
-
-        rule1_whitelist = ["cpu", "memory", "request", "error", "rrt", "response", "processes", "network"]
-        if not any(token in kpi for token in rule1_whitelist):
-            continue
-
         kpi_events: list[dict] = []
 
         for pod, pod_df in kpi_df.groupby("pod"):
@@ -235,16 +218,6 @@ def _detect_rule1_mean_outlier_events(df: pd.DataFrame) -> list[dict]:
         total_pods_in_kpi = kpi_df["pod"].nunique()
         unique_anomalous_pods = {e["pod"] for e in kpi_events if e["pattern"] == "mean_outlier"}
 
-        is_error_metric = "error" in kpi
-        is_network_metric = "network" in kpi
-        if (
-            not is_error_metric
-            and not is_network_metric
-            and total_pods_in_kpi > 0
-            and (len(unique_anomalous_pods) / total_pods_in_kpi) > 0.25
-        ):
-            continue
-
         raw_events.extend(kpi_events)
 
     return raw_events
@@ -277,7 +250,7 @@ def run_tests(limit=None, uuid=None):
     metric_agent = MetricAgent(str(dataset_root))
     records: list[dict] = []
 
-    for case in tqdm(test_cases, desc="Running baseline-5"):
+    for case in tqdm(test_cases, desc="Running baseline5"):
         case_uuid = str(case.get("uuid", "")).strip()
         start_str = case.get("start_time")
         end_str = case.get("end_time")
@@ -322,9 +295,9 @@ def run_tests(limit=None, uuid=None):
             .reset_index(drop=True)
         )
 
-    output_dir = PROJECT_ROOT / "unit-test/metric/results"
+    output_dir = PROJECT_ROOT / "unit_test/metric/results"
     output_dir.mkdir(parents=True, exist_ok=True)
-    output_file = output_dir / "result_baseline_5.csv"
+    output_file = output_dir / "result_baseline5.csv"
     result_df.to_csv(output_file, index=False)
     logger.info("saved %d anomaly rows to %s", len(result_df), output_file)
 
@@ -337,4 +310,4 @@ if __name__ == "__main__":
 
     run_tests(limit=args.limit, uuid=args.uuid)
 
-# python3 unit-test/metric/baselines/baseline-5/run_baseline-5.py --limit=5
+# python3 unit_test/metric/baselines/baseline5/run_baseline5.py --limit=5

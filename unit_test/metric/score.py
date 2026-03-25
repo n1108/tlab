@@ -1,5 +1,5 @@
 # 评分脚本，有两种评分模式
-# 1. 获取单个 baseline 的输出 results/result_baseline_<method>.csv 进行评分
+# 1. 获取单个 baseline 的输出 results/result_baseline<method>.csv 进行评分
 # 2. 对多个 baseline 的结果取并集进行评分
 # 评分机制：
 # 设 data/metric_dataset.json 中的某个故障（uuid）的故障组件集合为 C，故障指标集合为 M
@@ -54,7 +54,7 @@ def _load_predictions(method: str) -> pd.DataFrame:
 	all_frames: List[pd.DataFrame] = []
 
 	for method_id in method_ids:
-		result_file = RESULT_DIR / f"result_baseline_{method_id}.csv"
+		result_file = RESULT_DIR / f"result_baseline{method_id}.csv"
 		if not result_file.exists():
 			raise FileNotFoundError(f"baseline result not found: {result_file}")
 
