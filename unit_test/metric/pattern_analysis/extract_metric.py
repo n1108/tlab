@@ -27,7 +27,7 @@ from exp.agent.metric import MetricAgent
 
 def extract_metric(uuid, component, metric, extend_mins=0):
     # Paths
-    test_data_path = workspace_root / "unit-test/metric/test_dataset.json"
+    test_data_path = workspace_root / "unit_test/metric/data/metric_dataset.json"
     dataset_root = workspace_root / "dataset"
     output_dir = workspace_root / "unit-test/metric/pattern-analysis"
     img_dir = output_dir / "img"
