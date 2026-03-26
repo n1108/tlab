@@ -47,7 +47,7 @@ def _parse_iso_utc(time_str: str) -> datetime:
 
 def _load_test_cases() -> list:
     """加载测试用例数据集"""
-    dataset_path = PROJECT_ROOT / "unit-test/metric/data/metric_dataset.json"
+    dataset_path = PROJECT_ROOT / "unit_test/metric/data/metric_dataset.json"
     if not dataset_path.exists():
         raise FileNotFoundError(f"test dataset not found: {dataset_path}")
 
@@ -134,7 +134,7 @@ def run_tests(limit=None, uuid=None):
 
     output_dir = PROJECT_ROOT / "unit-test/metric/results"
     output_dir.mkdir(parents=True, exist_ok=True)
-    output_file = output_dir / "result_baseline_1.csv"
+    output_file = output_dir / "result_baseline1.csv"
     result_df.to_csv(output_file, index=False)
 
     logger.info("Saved %d anomaly rows to %s", len(result_df), output_file)
