@@ -3,6 +3,7 @@ import json
 import argparse
 from concurrent.futures import ThreadPoolExecutor
 import os
+import re
 from typing import Dict, List, Optional
 from datetime import datetime
 
@@ -16,7 +17,21 @@ from exp.utils.time import parse_time_range
 logger = logging.getLogger(__name__)
 
 
-def load_precomputed_metrics(uuid: str, dataset: str) -> List[Dict]:
+def _normalize_component_for_judge(component: str) -> str:
+    if not isinstance(component, str):
+        return "unknown"
+    if component.startswith("aiops-k8s-") or component.startswith("k8s-master"):
+        return component
+    parts = component.rsplit('-', 1)
+    if len(parts) == 2 and parts[1].isdigit():
+        return parts[0]
+    # 兜底：匹配 deployment 风格后缀（如 service-5c67-xyz）
+    if re.match(r"^.+-[a-z0-9]{4,}-[a-z0-9]{3,}$", component):
+        return component.split('-', 1)[0]
+    return component
+
+
+def load_precomputed_metrics(uuid: str, dataset: str, top_k: int = 30) -> List[Dict]:
     """从 ranked_anomaly_with_pattern.csv 文件加载指定 uuid 的预计算指标"""
     import csv
     
@@ -26,14 +41,20 @@ def load_precomputed_metrics(uuid: str, dataset: str) -> List[Dict]:
     try:
         with open(csv_path, 'r', encoding='utf-8') as f:
             reader = csv.DictReader(f)
+            seen = set()
             for row in reader:
                 if row['uuid'] == uuid:
                     component = row.get('component', 'unknown')
+                    service = _normalize_component_for_judge(component)
                     metric = row.get('metric', 'unknown')
                     pattern = row.get('pattern', 'unknown')
+                    key = (service, metric, pattern)
+                    if key in seen:
+                        continue
+                    seen.add(key)
                     metrics.append({
                         # 与 JudgeAgent._format_observation(metric) 兼容
-                        'service': component,
+                        'service': service,
                         'kpi': metric,
                         'reason': f"precomputed_ranked_metric({pattern})",
                         # details 原本是时间戳列表；预计算文件里没有时间，因此附带 pattern 供展示
@@ -43,6 +64,8 @@ def load_precomputed_metrics(uuid: str, dataset: str) -> List[Dict]:
                         'metric': metric,
                         'pattern': pattern,
                     })
+                    if len(metrics) >= max(1, int(top_k)):
+                        break
         
         logger.info(f"Loaded {len(metrics)} precomputed metrics for uuid: {uuid}")
         
@@ -54,7 +77,8 @@ def load_precomputed_metrics(uuid: str, dataset: str) -> List[Dict]:
 
 
 def process_anomaly(item: Dict, metric_agent: MetricAgent, trace_agent: TraceAgent, log_agent: LogAgent,
-                    judge_agent: JudgeAgent, use_precomputed: bool = False):
+                    judge_agent: JudgeAgent, use_precomputed: bool = False,
+                    precomputed_top_k: int = 30):
     uuid = str(item.get("uuid", ""))
     description = str(item.get("Anomaly Description", ""))
     start_time, end_time = parse_time_range(description)
@@ -75,7 +99,7 @@ def process_anomaly(item: Dict, metric_agent: MetricAgent, trace_agent: TraceAge
     metric_info = ""
     if use_precomputed:
         # 从 CSV 文件加载预计算的指标结果（已按根因可能性排序）
-        metric_result = load_precomputed_metrics(uuid, metric_agent.root_path)
+        metric_result = load_precomputed_metrics(uuid, metric_agent.root_path, top_k=precomputed_top_k)
         if not metric_result:
             logger.warning(f"No precomputed metrics found for uuid: {uuid}, falling back to MetricAgent")
             metric_result = metric_agent.score(start_time, end_time)
@@ -108,6 +132,7 @@ def main(args: argparse.Namespace, uuid: str):
     output = f"results/{dataset}/answer/{uuid}-output.jsonl"
     max_workers = int(args.max_workers)
     use_precomputed = getattr(args, 'use_precomputed', False)
+    precomputed_top_k = int(getattr(args, 'precomputed_top_k', 30))
 
     setup_logger(log_file, log_level)
     logger.info(f"Logger initialized. Dataset: {dataset}, UUID: {uuid}, Use Precomputed: {use_precomputed}")
@@ -129,7 +154,15 @@ def main(args: argparse.Namespace, uuid: str):
     
     with open(output, 'a', encoding='utf-8') as o:
         for anomaly in anomalies:
-             res = process_anomaly(anomaly, metric_agent, trace_agent, log_agent, judge_agent, use_precomputed)
+             res = process_anomaly(
+                 anomaly,
+                 metric_agent,
+                 trace_agent,
+                 log_agent,
+                 judge_agent,
+                 use_precomputed,
+                 precomputed_top_k,
+             )
              if res:
                  o.write(json.dumps(res, ensure_ascii=False) + "\n")
                  o.flush()
@@ -142,6 +175,8 @@ if __name__ == "__main__":
     parser.add_argument('--log_level', type=str, default='INFO')
     parser.add_argument('--use_precomputed', action='store_true', 
                         help='使用预计算的 ranked_anomaly_with_pattern.csv 中的指标结果，而非调用 MetricAgent')
+    parser.add_argument('--precomputed_top_k', type=int, default=30,
+                        help='使用预计算指标时，每个故障最多读取前K条（按CSV排序）')
     args = parser.parse_args()
     main(args, uuid)
 
