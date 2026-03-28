@@ -161,14 +161,27 @@ def _detect_local_pattern(series: pd.Series, anomaly_indices: np.ndarray) -> str
 	return "dip"
 
 
-def _pattern_from_series(series: pd.Series, fault_start: datetime) -> str:
+def _longest_true_run(mask: np.ndarray) -> int:
+	max_run = 0
+	run = 0
+	for v in mask:
+		if bool(v):
+			run += 1
+			if run > max_run:
+				max_run = run
+		else:
+			run = 0
+	return max_run
+
+
+def _pattern_from_series(series: pd.Series, fault_start: datetime) -> tuple[str, float, float, int]:
 	if series.empty or len(series) < 5:
-		return "normal"
+		return "normal", 0.0, 0.0, 0
 
 	pre = series[series.index < fault_start]
 	post = series[series.index >= fault_start]
 	if pre.empty or post.empty:
-		return "normal"
+		return "normal", 0.0, 0.0, 0
 
 	base_mean = float(pre.mean())
 	base_std = float(pre.std())
@@ -179,12 +192,27 @@ def _pattern_from_series(series: pd.Series, fault_start: datetime) -> str:
 		post_mask = ((post - base_mean).abs() > 0.05).to_numpy()
 
 	if not np.any(post_mask):
-		return "normal"
+		return "normal", 0.0, 0.0, 0
+
+	duration_ratio = float(np.mean(post_mask))
+	run_length = int(_longest_true_run(post_mask))
+	first_idx = int(np.where(post_mask)[0][0])
+	first_time = post.index[first_idx]
+	if isinstance(first_time, pd.Timestamp):
+		first_time = first_time.to_pydatetime()
+	delta_minutes = max(0.0, float((first_time - fault_start).total_seconds() / 60.0))
+	onset_score = float(np.exp(-delta_minutes / 5.0))
 
 	full_mask = np.zeros(len(series), dtype=bool)
 	start_idx = len(pre)
 	full_mask[start_idx:start_idx + len(post_mask)] = post_mask
-	return _detect_local_pattern(series, full_mask)
+	pattern = _detect_local_pattern(series, full_mask)
+
+	# 对于持续性很弱的非瞬时模式做降级，减少伪 shift/surge
+	if pattern in {"surge", "level_shift_up", "level_shift_down", "dip"} and run_length < 2 and duration_ratio < 0.08:
+		pattern = "spike" if pattern in {"surge", "level_shift_up"} else "drop"
+
+	return pattern, onset_score, duration_ratio, run_length
 
 
 def _build_metric_dict_for_candidates(
@@ -289,15 +317,24 @@ def run(
 			component, metric = key.split("::", 1)
 			component_group = _normalize_component(component)
 
-			pattern = _pattern_from_series(series_dict[key], start_time)
+			pattern, onset_score, duration_ratio, run_length = _pattern_from_series(series_dict[key], start_time)
 			raw_score = float(score_map.get(key, 0.0))
 			votes = int(candidate_votes.get((component, metric), 1))
 			vote_weight = 1.0 + 0.35 * max(0, votes - 1)
 			# 使用 log1p 压缩量级，避免个别超大值淹没全部先验
 			score_base = float(np.log1p(max(0.0, raw_score)))
 			weighted_score = score_base * _pattern_weight(pattern) * vote_weight
-			final_score = weighted_score
+
+			# 时间先发分 + 持续性分：越早出现、持续越稳定，分越高
+			temporal_weight = (0.75 + 0.5 * onset_score) * (0.75 + 0.5 * min(1.0, duration_ratio / 0.2))
+			if pattern in {"surge", "level_shift_up", "level_shift_down", "dip", "drop"}:
+				temporal_weight *= (0.8 + 0.2 * min(1.0, run_length / 3.0))
+
+			final_score = weighted_score * temporal_weight
 			if drop_normal and pattern == "normal":
+				continue
+			# 极晚出现且非常短促的单点峰值，视为低价值噪声
+			if pattern == "spike" and onset_score < 0.2 and duration_ratio < 0.02:
 				continue
 			output_rows.append(
 				{
@@ -309,18 +346,26 @@ def run(
 					"votes": votes,
 					"raw_score": raw_score,
 					"score": weighted_score,
+					"onset_score": onset_score,
+					"duration_ratio": duration_ratio,
+					"run_length": run_length,
+					"temporal_weight": temporal_weight,
 					"final_score": final_score,
 				}
 			)
 
 	result_df = pd.DataFrame(
 		output_rows,
-		columns=["uuid", "component", "component_group", "metric", "pattern", "votes", "raw_score", "score", "final_score"],
+		columns=["uuid", "component", "component_group", "metric", "pattern", "votes", "raw_score", "score", "onset_score", "duration_ratio", "run_length", "temporal_weight", "final_score"],
 	)
 	if not result_df.empty:
 		result_df = result_df.drop_duplicates()
 		result_df["score"] = pd.to_numeric(result_df["score"], errors="coerce").fillna(0.0)
 		result_df["raw_score"] = pd.to_numeric(result_df["raw_score"], errors="coerce").fillna(0.0)
+		result_df["onset_score"] = pd.to_numeric(result_df["onset_score"], errors="coerce").fillna(0.0)
+		result_df["duration_ratio"] = pd.to_numeric(result_df["duration_ratio"], errors="coerce").fillna(0.0)
+		result_df["run_length"] = pd.to_numeric(result_df["run_length"], errors="coerce").fillna(0).astype(int)
+		result_df["temporal_weight"] = pd.to_numeric(result_df["temporal_weight"], errors="coerce").fillna(1.0)
 		result_df["final_score"] = pd.to_numeric(result_df["final_score"], errors="coerce").fillna(0.0)
 		result_df["votes"] = pd.to_numeric(result_df["votes"], errors="coerce").fillna(1).astype(int)
 

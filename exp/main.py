@@ -48,21 +48,35 @@ def load_precomputed_metrics(uuid: str, dataset: str, top_k: int = 30) -> List[D
                     service = _normalize_component_for_judge(component)
                     metric = row.get('metric', 'unknown')
                     pattern = row.get('pattern', 'unknown')
-                    key = (service, metric, pattern)
+                    final_score = row.get('final_score', '')
+                    onset_score = row.get('onset_score', '')
+                    duration_ratio = row.get('duration_ratio', '')
+                    run_length = row.get('run_length', '')
+
+                    # 以 service+kpi 去重，优先保留前面（高排序）的记录
+                    key = (service, metric)
                     if key in seen:
                         continue
                     seen.add(key)
+
+                    details = [
+                        f"pattern:{pattern}; final_score:{final_score}; onset:{onset_score}; duration:{duration_ratio}; run:{run_length}"
+                    ]
                     metrics.append({
                         # 与 JudgeAgent._format_observation(metric) 兼容
                         'service': service,
                         'kpi': metric,
                         'reason': f"precomputed_ranked_metric({pattern})",
                         # details 原本是时间戳列表；预计算文件里没有时间，因此附带 pattern 供展示
-                        'details': [f"pattern:{pattern}"],
+                        'details': details,
                         # 保留原字段，兼容其他下游逻辑
                         'component': component,
                         'metric': metric,
                         'pattern': pattern,
+                        'final_score': final_score,
+                        'onset_score': onset_score,
+                        'duration_ratio': duration_ratio,
+                        'run_length': run_length,
                     })
                     if len(metrics) >= max(1, int(top_k)):
                         break
@@ -105,7 +119,11 @@ def process_anomaly(item: Dict, metric_agent: MetricAgent, trace_agent: TraceAge
             metric_result = metric_agent.score(start_time, end_time)
         else:
             # 添加给大模型的提示信息（英文）
-            metric_info = "\n[NOTE] The above metrics are ranked by root cause likelihood. Higher-ranked metrics are more likely to be the root cause of the failure.\n"
+            metric_info = (
+                "\n[NOTE] The above metrics are ranked by root cause likelihood. "
+                "Each metric includes temporal features: onset score, duration ratio, and run length. "
+                "Higher-ranked metrics are more likely to be the root cause of the failure.\n"
+            )
     else:
         # MetricAgent.score 返回 List[Dict]
         metric_result = metric_agent.score(start_time, end_time)
