@@ -151,6 +151,10 @@ def main(args: argparse.Namespace, uuid: str):
     max_workers = int(args.max_workers)
     use_precomputed = getattr(args, 'use_precomputed', False)
     precomputed_top_k = int(getattr(args, 'precomputed_top_k', 30))
+    llm_provider = str(getattr(args, 'llm_provider', 'deepseek'))
+    llm_model = str(getattr(args, 'llm_model', '')).strip() or None
+    llm_api_key = str(getattr(args, 'llm_api_key', '')).strip() or None
+    llm_api_url = str(getattr(args, 'llm_api_url', '')).strip() or None
 
     setup_logger(log_file, log_level)
     logger.info(f"Logger initialized. Dataset: {dataset}, UUID: {uuid}, Use Precomputed: {use_precomputed}")
@@ -159,7 +163,12 @@ def main(args: argparse.Namespace, uuid: str):
     trace_agent = TraceAgent(dataset)
     log_agent = LogAgent(dataset)
     # JudgeAgent 需要 API Key
-    judge_agent = JudgeAgent(None, None) 
+    judge_agent = JudgeAgent(
+        llm_api_key,
+        llm_api_url,
+        provider=llm_provider,
+        model=llm_model,
+    )
 
     try:
         with open(input_file, 'r') as f:
@@ -195,6 +204,14 @@ if __name__ == "__main__":
                         help='使用预计算的 ranked_anomaly_with_pattern.csv 中的指标结果，而非调用 MetricAgent')
     parser.add_argument('--precomputed_top_k', type=int, default=30,
                         help='使用预计算指标时，每个故障最多读取前K条（按CSV排序）')
+    parser.add_argument('--llm_provider', type=str, default='deepseek', choices=['deepseek', 'yuzo'],
+                        help='Judge 使用的大模型提供方：deepseek 或 yuzo')
+    parser.add_argument('--llm_model', type=str, default='',
+                        help='覆盖默认模型名。yuzo 默认 reasoner，deepseek 默认 deepseek-chat')
+    parser.add_argument('--llm_api_key', type=str, default='',
+                        help='覆盖环境变量中的 API Key')
+    parser.add_argument('--llm_api_url', type=str, default='',
+                        help='覆盖默认 Base URL（yuzo 默认 https://api.deepshields.com/v1）')
     args = parser.parse_args()
     main(args, uuid)
 
