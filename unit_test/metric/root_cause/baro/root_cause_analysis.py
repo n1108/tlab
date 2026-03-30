@@ -1,3 +1,4 @@
+import numpy as np
 import pandas as pd
 from sklearn.preprocessing import RobustScaler, StandardScaler
 
@@ -225,9 +226,10 @@ def robust_scorer_dict(metrics: dict, inject_time: int) -> list:
         if iqr == 0:
             iqr = 1
 
-        # Score = max deviation in post-fault period normalized by IQR
-        max_val = max(post_data)
-        score = abs(max_val - median) / iqr
+        # Score = 故障后相对「故障前中位数」的最大绝对偏离 / IQR（同时覆盖冲高与下挫）。
+        # 旧实现仅用 max(post)，下降型异常（latency/cpu 降低等）易被低估，根因 KPI 排不上去。
+        post_arr = np.asarray(post_data, dtype=float)
+        score = float(np.max(np.abs(post_arr - median)) / iqr)
         ranked_list.append((metric_name, score))
 
     ranked_list.sort(key=lambda x: x[1], reverse=True)

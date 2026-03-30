@@ -6,6 +6,7 @@ import os
 import re
 from typing import Dict, List, Optional
 from datetime import datetime
+from zoneinfo import ZoneInfo
 
 from exp.agent.metric import MetricAgent
 from exp.agent.trace import TraceAgent
@@ -169,6 +170,12 @@ def main(args: argparse.Namespace, uuid: str):
         provider=llm_provider,
         model=llm_model,
     )
+    if not judge_agent.api_key:
+        logger.error(
+            "No LLM API key configured. Set YUZO_API_KEY, DEEPSHIELDS_API_KEY, "
+            "DEEPSEEK_API_KEY, OPENAI_API_KEY, or use --llm_api_key."
+        )
+        return
 
     try:
         with open(input_file, 'r') as f:
@@ -178,27 +185,56 @@ def main(args: argparse.Namespace, uuid: str):
         return
 
     os.makedirs(os.path.dirname(output), exist_ok=True)
-    
-    with open(output, 'a', encoding='utf-8') as o:
-        for anomaly in anomalies:
-             res = process_anomaly(
-                 anomaly,
-                 metric_agent,
-                 trace_agent,
-                 log_agent,
-                 judge_agent,
-                 use_precomputed,
-                 precomputed_top_k,
-             )
-             if res:
-                 o.write(json.dumps(res, ensure_ascii=False) + "\n")
-                 o.flush()
+
+    workers = max(1, int(max_workers))
+    # 边跑边写入：避免 list(executor.map(...)) 卡到全部完成才创建/写入 jsonl（大批量时会误以为「没生成文件」）。
+    with open(output, "w", encoding="utf-8") as o:
+        if workers == 1:
+            for anomaly in anomalies:
+                res = process_anomaly(
+                    anomaly,
+                    metric_agent,
+                    trace_agent,
+                    log_agent,
+                    judge_agent,
+                    use_precomputed,
+                    precomputed_top_k,
+                )
+                if res:
+                    o.write(json.dumps(res, ensure_ascii=False) + "\n")
+                    o.flush()
+        else:
+            logger.info("Running with %s worker threads (parallel per anomaly)", workers)
+            with ThreadPoolExecutor(max_workers=workers) as executor:
+                for res in executor.map(
+                    lambda a: process_anomaly(
+                        a,
+                        metric_agent,
+                        trace_agent,
+                        log_agent,
+                        judge_agent,
+                        use_precomputed,
+                        precomputed_top_k,
+                    ),
+                    anomalies,
+                ):
+                    if res:
+                        o.write(json.dumps(res, ensure_ascii=False) + "\n")
+                        o.flush()
+
+    logger.info("Finished; results written to %s", output)
 
 if __name__ == "__main__":
-    uuid = datetime.now().strftime('%Y-%m-%d_%H-%M-%S')
+    uuid = datetime.now(ZoneInfo("Asia/Shanghai")).strftime("%Y-%m-%d_%H-%M-%S")
     parser = argparse.ArgumentParser()
     parser.add_argument('--dataset', type=str, default="dataset")
-    parser.add_argument('--max_workers', type=int, default=2)
+    parser.add_argument(
+        '--max_workers',
+        type=int,
+        default=2,
+        help='并行处理 input.json 中每条故障的线程数（每条含 trace/log/metric 与一次 Judge LLM）。'
+        ' 过大可能触发 Yuzo/DeepSeek 限流（429）；调试可设为 1。',
+    )
     parser.add_argument('--log_level', type=str, default='INFO')
     parser.add_argument('--use_precomputed', action='store_true', 
                         help='使用预计算的 ranked_anomaly_with_pattern.csv 中的指标结果，而非调用 MetricAgent')

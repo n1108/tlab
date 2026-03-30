@@ -51,10 +51,11 @@ class JudgeAgent:
         self.max_metric_kpis_per_service = max(1, int(os.getenv("JUDGE_MAX_METRIC_KPIS_PER_SERVICE", "2")))
         self.max_trace_links = max(1, int(os.getenv("JUDGE_MAX_TRACE_LINKS", "10")))
         self.max_log_items = max(1, int(os.getenv("JUDGE_MAX_LOG_ITEMS", "10")))
-        self.max_obs_chars = max(400, int(os.getenv("JUDGE_MAX_OBS_CHARS", "1800")))
-        self.max_user_prompt_chars = max(800, int(os.getenv("JUDGE_MAX_USER_PROMPT_CHARS", "1600")))
-        self.max_context_tokens = max(512, int(os.getenv("JUDGE_MAX_CONTEXT_TOKENS", "2048")))
-        self.default_output_tokens = max(32, int(os.getenv("JUDGE_MAX_OUTPUT_TOKENS", "128")))
+        self.temperature = float(os.getenv("JUDGE_TEMPERATURE", "0.1"))
+        self.max_obs_chars = max(
+            400,
+            int(os.getenv("JUDGE_MAX_OBS_CHARS", "1800")),
+        )
 
         if not self.api_key:
             logger.warning("JudgeAgent: API key not found.")
@@ -156,31 +157,25 @@ class JudgeAgent:
         return text[:max_chars] + suffix
 
     @staticmethod
-    def _estimate_tokens(text: str) -> int:
-        # Conservative approximation for mixed Chinese/English prompts.
-        return max(1, int(len(text) / 2.5))
+    def _assemble_user_prompt(
+        description: str,
+        metric_obs: str,
+        trace_obs: str,
+        log_obs: str,
+    ) -> str:
+        return f"""Anomaly Time/Desc: {description}
 
-    def _compute_max_output_tokens(self, system_prompt: str, user_prompt: str) -> int:
-        input_est = self._estimate_tokens(system_prompt) + self._estimate_tokens(user_prompt)
-        available = self.max_context_tokens - input_est - 64
-        return max(32, min(self.default_output_tokens, available))
+[METRICS]
+{metric_obs}
 
-    @staticmethod
-    def _extract_input_token_from_error(exc: Exception) -> int | None:
-        msg = str(exc)
-        m = re.search(r"input_tokens[^\d]*(\d+)", msg)
-        if m:
-            try:
-                return int(m.group(1))
-            except Exception:
-                return None
-        m2 = re.search(r"prompt contains at least\s+(\d+)\s+input tokens", msg, flags=re.IGNORECASE)
-        if m2:
-            try:
-                return int(m2.group(1))
-            except Exception:
-                return None
-        return None
+[TRACES]
+{trace_obs}
+
+[LOGS]
+{log_obs}
+
+DIAGNOSE based on System Context & Scoring Criteria provided in System Prompt.
+"""
 
     @staticmethod
     def _salvage_partial_json(content: str) -> Dict[str, Any] | None:
@@ -349,7 +344,6 @@ class JudgeAgent:
                         comp = item.get('component')
                         # Log keywords like 'connection refused' are crucial for 'Restart (+10)'
                         obs = item.get('observation', '')
-                        # Try to keep it concise for the 20-word limit context
                         summary.append(f"- {comp}: {obs}")
                     if omitted_log > 0:
                         summary.append(f"- ...(+{omitted_log} logs omitted)")
@@ -377,73 +371,12 @@ class JudgeAgent:
         trace_obs = self._format_observation(trace_result, "trace")
         log_obs = self._format_observation(log_result, "log")
 
-        # 2. Construct User Prompt (The Dynamic Part)
-        if self.provider == "yuzo":
-            # Reasoner context window is small; aggressively clip noisy sections.
-            metric_obs = self._clip_text(metric_obs, 900)
-            trace_obs = self._clip_text(trace_obs, 700)
-            log_obs = self._clip_text(log_obs, 300)
-
         system_prompt = HWLYYZC_SYSTEM_PROMPT
 
-        user_prompt = f"""
-Anomaly Time/Desc: {description}
+        user_prompt = self._assemble_user_prompt(
+            description, metric_obs, trace_obs, log_obs
+        )
 
-[METRICS]
-{metric_obs}
-
-[TRACES]
-{trace_obs}
-
-[LOGS]
-{log_obs}
-
-DIAGNOSE based on System Context & Scoring Criteria provided in System Prompt.
-"""
-
-        if self.provider == "yuzo":
-            user_prompt += (
-                "\nReturn ONLY valid JSON (no markdown code fences). "
-                "Use exactly these keys: component, reason, reasoning_trace. "
-                "Keep reason short (<=20 words). If unsure, keep reasoning_trace as [].\n"
-            )
-
-        if self.provider == "yuzo" and len(user_prompt) > self.max_user_prompt_chars:
-            overflow = len(user_prompt) - self.max_user_prompt_chars
-            # 优先压缩 trace，再压缩 metric，最后压缩日志。
-            trace_obs = self._clip_text(trace_obs, max(120, len(trace_obs) - overflow - 100))
-            user_prompt = f"""
-Anomaly Time/Desc: {description}
-
-[METRICS]
-{metric_obs}
-
-[TRACES]
-{trace_obs}
-
-[LOGS]
-{log_obs}
-
-DIAGNOSE based on System Context & Scoring Criteria provided in System Prompt.
-"""
-            if len(user_prompt) > self.max_user_prompt_chars:
-                metric_obs = self._clip_text(metric_obs, 500)
-                log_obs = self._clip_text(log_obs, 180)
-                user_prompt = f"""
-Anomaly Time/Desc: {description}
-
-[METRICS]
-{metric_obs}
-
-[TRACES]
-{trace_obs}
-
-[LOGS]
-{log_obs}
-
-DIAGNOSE based on System Context & Scoring Criteria provided in System Prompt.
-"""
-        
         print(f"--- [PROMPT] ---\n{user_prompt}\n----------------")
 
         # 3. Call LLM
@@ -466,14 +399,9 @@ DIAGNOSE based on System Context & Scoring Criteria provided in System Prompt.
                         {"role": "system", "content": system_prompt},
                         {"role": "user", "content": user_prompt},
                     ],
-                    "temperature": 0.1 if self.provider != "yuzo" else 0.3,
+                    "temperature": self.temperature,
+                    "response_format": {"type": "json_object"},
                 }
-                if self.provider == "yuzo":
-                    req_kwargs["max_tokens"] = self._compute_max_output_tokens(system_prompt, user_prompt)
-
-                # DeepSeek generally supports json_object; YuZo gateway may reject it.
-                if self.provider != "yuzo":
-                    req_kwargs["response_format"] = {"type": "json_object"}
 
                 try:
                     response = self._create_completion_with_retry(client, req_kwargs)
@@ -484,30 +412,7 @@ DIAGNOSE based on System Context & Scoring Criteria provided in System Prompt.
                     last_exc = e
                     logger.warning("Model attempt failed: model=%s err=%s", model_name, e)
 
-                    # For context overflow, shrink user prompt and lower output token budget once.
-                    if self.provider == "yuzo":
-                        in_tokens = self._extract_input_token_from_error(e)
-                        msg = str(e).lower()
-                        if in_tokens is not None or "maximum context length" in msg or "input_tokens" in msg:
-                            compact_user_prompt = self._clip_text(user_prompt, 1100)
-                            compact_req_kwargs = {
-                                "model": model_name,
-                                "messages": [
-                                    {"role": "system", "content": system_prompt},
-                                    {"role": "user", "content": compact_user_prompt},
-                                ],
-                                "temperature": 0.3,
-                                "max_tokens": 64,
-                            }
-                            try:
-                                response = self._create_completion_with_retry(client, compact_req_kwargs)
-                                logger.warning("Context-overflow fallback succeeded with compact prompt")
-                                break
-                            except Exception as e3:
-                                last_exc = e3
-                                logger.warning("Compact prompt fallback failed: %s", e3)
-
-                    # 对兼容网关再试一次去掉 response_format。
+                    # 网关不支持 json_object 时再试一次去掉 response_format（DeepSeek / Yuzo 共用）。
                     if "response_format" in req_kwargs:
                         try:
                             req_kwargs.pop("response_format", None)
