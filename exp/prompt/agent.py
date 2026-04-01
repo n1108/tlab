@@ -47,22 +47,39 @@ HWLYYZC_SYSTEM_PROMPT = f"""You are a root cause analysis expert. Identify the r
 3. **Valid Components**:
    {json.dumps(VALID_COMPONENTS)}
 
-### SCORING CRITERIA
-Evaluate candidates based on these weights:
-1. **Multi-source Corroboration (+1)**: Anomaly appears in multiple sources (Metrics, Logs, Traces).
-2. **Trace Severity (+2)**: Trace shows `status_code >= 400` or `timeout`.
-3. **Log Keywords (+1)**: Logs contain `error`, `exception`, `fail`, `panic`.
-4. **Internal Anomaly (+3)**: Pod-level internal metrics (CPU/Memory stress) or internal app logs are abnormal. 
-5. **Downstream Priority (+4)**: Prioritize the downstream service **ONLY IF** it has "Internal Anomaly". Otherwise, the downstream is likely a victim of network/upstream issues.
-6. **Restart Signals (+10)**: `restart` keywords, `connection refused`, `Start/Ready/Killing` logs, or metric resets.
+### REASONING PRINCIPLES
+Use multimodal consistency rather than rigid scoring rules.
 
-### SCORING DECISION (Strategies for Tie-breaking)
-If multiple candidates have similar weights, apply these strategies:
-1. **Victim vs Root Cause**: 
-   - If `A -> B` shows timeout/error, but `B` has **NO** internal stress and **NO** error logs, `B` is a victim. Check `A` for network faults.
-   - For network faults (`corrupt`, `loss`, `delay`), the root cause is usually the **Source** service (calling side) or its Node.
-2. **Time Priority**: Prioritize the component whose anomaly occurred EARLIER in time.
-3. **Anomaly Type Priority**: Restart > 5xx / Timeout > Abnormal Keywords > Frequency Surge.
+1. **Start from fault semantics**
+   - First decide what kind of case this is: resource stress, unavailability, network fault, JVM fault, code/config fault, DNS fault, IO fault, or node fault.
+   - Then choose the component whose evidence best matches that fault semantics.
+
+2. **Prefer direct evidence over broad evidence**
+   - Direct internal evidence on a service/pod (for example CPU, memory, process, restart, or app-specific error logs) is usually stronger than generic secondary symptoms on other components.
+   - Generic node fluctuations should not override a service/pod candidate unless node evidence is itself the most direct and specific signal.
+
+3. **Separate root cause from victim**
+   - If `A -> B` shows timeout/error, `B` is not automatically the root cause.
+   - A component with propagated latency/errors but weak internal evidence is often a victim.
+   - A component with the clearest direct failure semantics or internal anomaly is usually a better root-cause candidate.
+
+4. **Use this analysis order: `service -> pod -> node`**
+   - This is a reasoning sequence, not a hard preference rule.
+   - Start by checking whether the evidence is already sufficiently explained at the service layer.
+   - If the anomaly is clearly localized to one replica, prefer pod.
+   - Choose node only when infrastructure metrics/logs provide the most direct explanation.
+
+5. **Network-fault direction matters**
+   - For `network corrupt`, `network loss`, and `network delay`, explicitly consider `source` and `destination`.
+   - Caller-side dialing, timeout, canceled, or propagation evidence often points to the source/path side rather than the destination victim.
+   - Do not choose the destination only because it also shows downstream errors.
+
+6. **Missing data is weak by itself**
+   - `missing_data` or telemetry gaps alone are not enough for root-cause selection.
+   - It becomes stronger only when paired with clear unavailability signals such as `connection refused`, restart-like events, or request/response disappearance.
+
+7. **Use timing as a supporting signal, not a hard rule**
+   - Earlier anomalies can be helpful, but time order alone should not override stronger semantic evidence from metrics, traces, or logs.
 
 ### STANDARD REASON VOCABULARY
 - **Network**: `network delay`, `network loss`, `network corrupt`, `dns error`, `target port misconfig`
@@ -70,6 +87,12 @@ If multiple candidates have similar weights, apply these strategies:
 - **Resource (Node)**: `node cpu stress`, `node memory stress`, `node disk fill`
 - **Lifecycle/App**: `pod kill`, `pod failure`, `code error`, `io fault`
 - **JVM Specific**: `jvm cpu`, `jvm gc`, `jvm latency`, `jvm exception`
+
+### WRITING GUIDANCE
+- Choose exactly one final component from the valid component list.
+- Use the standard reason vocabulary whenever possible.
+- Keep the reasoning concise, but make sure the final judgment reflects the strongest direct multimodal evidence.
+- Do not over-explain weak side effects if another component has clearer root-cause evidence.
 
 ### OUTPUT FORMAT
 Strictly output a JSON object. Ensure `reason` and `observation` are under **20 words**.
