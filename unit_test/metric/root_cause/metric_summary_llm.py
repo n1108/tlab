@@ -23,9 +23,6 @@ def _normalize_component(component: str) -> str:
     c = str(component)
     if c.startswith("aiops-k8s-") or c.startswith("k8s-master"):
         return c
-    parts = c.rsplit("-", 1)
-    if len(parts) == 2 and parts[1].isdigit():
-        return parts[0]
     return c
 
 
@@ -313,8 +310,9 @@ def _build_must_keep_units(df: pd.DataFrame, max_items: int = 6) -> list[str]:
     # Prefer non-normal top-ranked units; fallback to top-ranked regardless of pattern.
     non_normal = work[work["pattern"].astype(str).ne("normal")].copy()
     pool = non_normal if not non_normal.empty else work
+    comp_col = "evidence_component" if "evidence_component" in pool.columns else "component_group"
     unit_rank = (
-        pool.groupby(["component_group", "metric"], as_index=False)
+        pool.groupby([comp_col, "metric"], as_index=False)
         .agg(
             rank_best=("rank_in_uuid", "min"),
             score_best=("final_score", "max"),
@@ -325,8 +323,9 @@ def _build_must_keep_units(df: pd.DataFrame, max_items: int = 6) -> list[str]:
     )
     out: list[str] = []
     for r in unit_rank.itertuples(index=False):
+        comp = getattr(r, comp_col)
         out.append(
-            f"({r.component_group}, {r.metric}) | rank_best={int(r.rank_best)} "
+            f"({comp}, {r.metric}) | rank_best={int(r.rank_best)} "
             f"| pattern={r.pattern_top} | score_best={float(r.score_best):.4f}"
         )
     return out
@@ -350,16 +349,17 @@ def _build_component_bundle_lines(
     else:
         work["votes"] = 1
 
+    comp_col = "evidence_component" if "evidence_component" in work.columns else "component_group"
     comp_rank = (
-        work.groupby("component_group", as_index=False)
+        work.groupby(comp_col, as_index=False)
         .agg(score_best=("final_score", "max"), votes_max=("votes", "max"), metric_cnt=("metric", "nunique"))
         .sort_values(["score_best", "votes_max", "metric_cnt"], ascending=[False, False, False])
         .head(max(1, int(max_components)))
     )
     lines: list[str] = []
     for r in comp_rank.itertuples(index=False):
-        cg = str(r.component_group)
-        g = work[work["component_group"] == cg].copy()
+        cg = str(getattr(r, comp_col))
+        g = work[work[comp_col] == cg].copy()
         top_metrics = (
             g.groupby("metric", as_index=False)
             .agg(
@@ -414,16 +414,17 @@ def _build_component_blocks(
             return "flat"
         return "unknown"
 
+    comp_col = "evidence_component" if "evidence_component" in work.columns else "component_group"
     comp_rank = (
-        work.groupby("component_group", as_index=False)
+        work.groupby(comp_col, as_index=False)
         .agg(score_best=("final_score", "max"), votes_max=("votes", "max"), metric_cnt=("metric", "nunique"))
         .sort_values(["score_best", "votes_max", "metric_cnt"], ascending=[False, False, False])
         .head(max(1, int(max_components)))
     )
     blocks: list[str] = []
     for r in comp_rank.itertuples(index=False):
-        cg = str(r.component_group)
-        g = work[work["component_group"] == cg].copy()
+        cg = str(getattr(r, comp_col))
+        g = work[work[comp_col] == cg].copy()
         top_metrics = (
             g.groupby("metric", as_index=False)
             .agg(
@@ -692,6 +693,11 @@ def two_stage_metric_summary(
         work["pattern"] = "unknown"
     work["category"] = work.apply(
         lambda r: _metric_category(r["component"], r["component_group"], r["metric"]), axis=1
+    )
+    # For pod-level evidence, keep concrete pod instance names to avoid losing pod-local signals.
+    work["evidence_component"] = work.apply(
+        lambda r: r["component"] if str(r["category"]) == "Pod" else r["component_group"],
+        axis=1,
     )
     work = work[work["uuid"].isin(case_uuids)].copy()
     present_uuids = set(work["uuid"].unique().tolist())

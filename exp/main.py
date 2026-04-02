@@ -97,6 +97,8 @@ def process_anomaly(item: Dict, metric_agent: MetricAgent, trace_agent: TraceAge
             metric_info = (
                 "\n[NOTE] The [METRICS] section above is a precomputed metric evidence summary for this UUID. "
                 "Treat it as structured prior evidence, not as a hard conclusion. "
+                "Some listed anomalies may be co-occurring side effects rather than the root cause. "
+                "In ordinary microservice cases, node or TiDB/TiKV anomalies may be collateral unless traces/logs support infrastructure or database-local failure. "
                 "Please combine them with traces, logs, topology, and fault semantics before the final judgment.\n"
             )
     else:
