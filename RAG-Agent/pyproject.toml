@@ -1,0 +1,29 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "rag-agent"
+version = "0.1.0"
+description = "Tool-calling RAG-style RCA (bundled metric/trace/log detectors)"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+  "openai>=1.0",
+  "numpy",
+  "pandas",
+  "pyarrow",
+  "scikit-learn",
+  "scipy",
+  "drain3",
+]
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["rag_agent*"]
+
+[tool.setuptools.package-data]
+"rag_agent.bundled" = ["template/drain3_log.ini"]
+
+[project.scripts]
+rag-agent = "rag_agent.__main__:main"
