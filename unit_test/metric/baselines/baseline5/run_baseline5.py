@@ -153,20 +153,6 @@ def _load_other_baseline_matched_hits(test_cases: list, exclude_method: int = 5)
     return hits
 
 
-def _build_expected_lookup(test_cases: list) -> tuple[Dict[str, Set[str]], Dict[str, str]]:
-    expected_by_uuid: Dict[str, Set[str]] = {}
-    preferred_component: Dict[str, str] = {}
-    for case in test_cases:
-        uuid = str(case.get("uuid", "")).strip()
-        if not uuid:
-            continue
-        metrics = {str(m) for m in (case.get("expected_anomalies") or []) if str(m)}
-        expected_by_uuid[uuid] = metrics
-        comps = [str(c) for c in (case.get("root_cause_components") or []) if str(c)]
-        preferred_component[uuid] = comps[0] if comps else "unknown"
-    return expected_by_uuid, preferred_component
-
-
 def _get_service_name(pod_name: str) -> str:
     if not isinstance(pod_name, str):
         return "unknown"
@@ -264,7 +250,6 @@ def _detect_short_fault_window_events(
     fault_start: datetime,
     fault_end: datetime,
     root_cause_components: list,
-    expected_metrics: list,
     fault_type: str = "",
 ) -> list[dict]:
     """
@@ -275,7 +260,7 @@ def _detect_short_fault_window_events(
     """
     raw_events: list[dict] = []
 
-    if df.empty or not root_cause_components or not expected_metrics:
+    if df.empty or not root_cause_components:
         return raw_events
 
     services = _services_from_root_causes(root_cause_components)
@@ -292,7 +277,14 @@ def _detect_short_fault_window_events(
             s = s.dt.tz_localize(None)
         return s
 
-    metrics_todo = [str(m) for m in expected_metrics if m]
+    candidate_metrics = (
+        set(POD_METRICS_LIST)
+        | set(SHORT_WINDOW_SPIKE_METRICS)
+        | set(SHORT_WINDOW_RATIO_TO_BASE.keys())
+        | set(SHORT_WINDOW_RATIO_TO_BASE.values())
+    )
+    present_metrics = {str(m) for m in df["kpi_key"].dropna().astype(str).unique()}
+    metrics_todo = sorted(candidate_metrics & present_metrics)
     drop_ratio_thr = 0.20
     vs_peer_post_thr = 0.22
     spike_abs_ratio = 1.0
@@ -507,7 +499,6 @@ def _detect_short_fault_window_events(
 def _detect_tidb_component_trend_events(
     df: pd.DataFrame,
     root_cause_components: list,
-    expected_metrics: list,
 ) -> list[dict]:
     """
     TiDB 组件级趋势兜底:
@@ -515,7 +506,7 @@ def _detect_tidb_component_trend_events(
     - 使用首尾分位段中位数差 + 整体变动范围，覆盖缓慢漂移
     """
     raw_events: list[dict] = []
-    if df.empty or not root_cause_components or not expected_metrics:
+    if df.empty or not root_cause_components:
         return raw_events
 
     target_components = [str(c) for c in root_cause_components if str(c).startswith("tidb-")]
@@ -537,13 +528,14 @@ def _detect_tidb_component_trend_events(
         "leader_count",
         "failed_query_ops",
     }
-    target_metrics = [str(m) for m in expected_metrics if str(m) in trend_metrics]
-    if not target_metrics:
-        return raw_events
-
     for comp in target_components:
         comp_df = df[df["pod"].astype(str).str.startswith(comp)]
         if comp_df.empty:
+            continue
+
+        present_metrics = {str(m) for m in comp_df["kpi_key"].dropna().astype(str).unique()}
+        target_metrics = sorted(trend_metrics & present_metrics)
+        if not target_metrics:
             continue
 
         for metric in target_metrics:
@@ -1242,90 +1234,6 @@ def _detect_resource_stable_events(df: pd.DataFrame) -> list[dict]:
     return raw_events
 
 
-def _detect_expected_coverage_fallback_events(
-    case: dict,
-    df: pd.DataFrame,
-    existing_events: list[dict],
-    window_sec: float,
-) -> list[dict]:
-    """
-    覆盖兜底规则（高召回）：
-    - 若 expected metric 尚未命中，但在当前窗口存在可观测证据，则补发
-    - 对极短窗口和节点类故障进一步放宽，避免采样稀疏导致系统性漏报
-    """
-    raw_events: list[dict] = []
-    if not case:
-        return raw_events
-    if df.empty or ("pod" not in df.columns) or ("kpi_key" not in df.columns):
-        return raw_events
-
-    components = [str(c) for c in (case.get("root_cause_components") or []) if c]
-    expected_metrics = [str(m) for m in (case.get("expected_anomalies") or []) if m]
-    if not components or not expected_metrics:
-        return raw_events
-
-    detected_metrics = {str(ev.get("kpi", "")) for ev in existing_events if ev.get("kpi")}
-    fault_type = str(case.get("fault_type") or "").strip().lower()
-
-    relaxed_fault_types = {
-        "pod kill",
-        "network loss",
-        "network corrupt",
-        "network delay",
-        "node memory stress",
-        "node cpu stress",
-        "node disk fill",
-    }
-
-    for comp in components:
-        service = _get_service_name(comp)
-        comp_prefix = str(comp)
-        comp_rows = df[df["pod"].astype(str).str.startswith(comp_prefix)]
-        svc_rows = df[df["pod"].astype(str).str.startswith(service)]
-
-        for metric in expected_metrics:
-            if metric in detected_metrics:
-                continue
-
-            metric_rows_comp = comp_rows[comp_rows["kpi_key"] == metric]
-            metric_rows_svc = svc_rows[svc_rows["kpi_key"] == metric]
-            metric_rows_any = df[df["kpi_key"] == metric]
-
-            has_evidence = (not metric_rows_comp.empty) or (not metric_rows_svc.empty)
-
-            # 服务级/全局类指标的证据放宽
-            if not has_evidence and metric in {
-                "rrt",
-                "rrt_max",
-                "request",
-                "response",
-                "error",
-                "client_error",
-                "server_error",
-                "error_ratio",
-                "client_error_ratio",
-                "server_error_ratio",
-            }:
-                has_evidence = not metric_rows_any.empty
-
-            # 短窗或节点故障场景允许模板兜底（避免采样稀疏造成漏报）
-            template_allow = window_sec <= 5.0 or (fault_type in relaxed_fault_types)
-
-            if has_evidence or template_allow:
-                raw_events.append(
-                    {
-                        "pod": comp,
-                        "service": service,
-                        "kpi": metric,
-                        "pattern": "expected_coverage_fallback",
-                        "timestamps": [],
-                    }
-                )
-                detected_metrics.add(metric)
-
-    return raw_events
-
-
 def run_tests(limit=None, uuid=None):
     sys.path.insert(0, str(PROJECT_ROOT))
     from unit_test.metric.baselines.baseline1.metric import MetricAgent
@@ -1344,7 +1252,6 @@ def run_tests(limit=None, uuid=None):
     if limit is not None:
         test_cases = test_cases[:limit]
 
-    expected_by_uuid, preferred_component_by_uuid = _build_expected_lookup(test_cases)
     # 粗覆盖用于统计；matched 覆盖用于补缺过滤
     _ = _load_other_baseline_metric_hits(test_cases, exclude_method=5)
     other_hits_matched = _load_other_baseline_matched_hits(test_cases, exclude_method=5)
@@ -1394,7 +1301,6 @@ def run_tests(limit=None, uuid=None):
                     start_time,
                     end_time,
                     case.get("root_cause_components") or [],
-                    case.get("expected_anomalies") or [],
                     str(case.get("fault_type") or ""),
                 )
             except Exception as exc:
@@ -1405,7 +1311,6 @@ def run_tests(limit=None, uuid=None):
             events_tidb_component = _detect_tidb_component_trend_events(
                 df,
                 case.get("root_cause_components") or [],
-                case.get("expected_anomalies") or [],
             )
         except Exception as exc:
             logger.warning("tidb component trend detection failed for %s: %s", case_uuid, exc)
@@ -1429,13 +1334,6 @@ def run_tests(limit=None, uuid=None):
             + events_short
             + events_tidb_component
         )
-        events_fallback = _detect_expected_coverage_fallback_events(
-            case,
-            df,
-            events,
-            window_sec,
-        )
-        events = events + events_fallback
         for ev in events:
             records.append(
                 {
@@ -1447,14 +1345,6 @@ def run_tests(limit=None, uuid=None):
 
     result_df = pd.DataFrame(records, columns=["uuid", "component", "metric"])
     if not result_df.empty:
-        # baseline5 仅保留 expected 集合内的指标，减少误报
-        result_df = result_df[
-            result_df.apply(
-                lambda r: str(r["metric"]) in expected_by_uuid.get(str(r["uuid"]), set()),
-                axis=1,
-            )
-        ].copy()
-
         # baseline5 只做补缺：去掉其他 baseline 已覆盖的 (uuid, metric)
         result_df = result_df[
             ~result_df.apply(
@@ -1462,28 +1352,6 @@ def run_tests(limit=None, uuid=None):
                 axis=1,
             )
         ].copy()
-
-        # 对剩余未覆盖的 expected 指标进行补齐（用根因组件首项）
-        existing_hits = {
-            (str(r.uuid), str(r.metric))
-            for r in result_df[["uuid", "metric"]].itertuples(index=False)
-        }
-        supplement_rows: list[dict] = []
-        for uuid, expected_metrics in expected_by_uuid.items():
-            for metric in expected_metrics:
-                key = (uuid, metric)
-                if key in other_hits_matched or key in existing_hits:
-                    continue
-                supplement_rows.append(
-                    {
-                        "uuid": uuid,
-                        "component": preferred_component_by_uuid.get(uuid, "unknown"),
-                        "metric": metric,
-                    }
-                )
-                existing_hits.add(key)
-        if supplement_rows:
-            result_df = pd.concat([result_df, pd.DataFrame(supplement_rows)], ignore_index=True)
 
     if not result_df.empty:
         result_df = result_df.drop_duplicates()
