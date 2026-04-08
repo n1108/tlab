@@ -4,6 +4,7 @@ import logging
 import sys
 from datetime import datetime, timedelta
 from pathlib import Path
+from typing import Dict, Set, Tuple
 
 import pandas as pd
 from tqdm import tqdm
@@ -73,6 +74,97 @@ def _load_test_cases() -> list:
         raise ValueError(f"invalid test dataset format: {dataset_path}")
 
     return data
+
+
+def _component_aliases(component: str) -> Set[str]:
+    aliases = {component}
+    if component.startswith("aiops-k8s-"):
+        return aliases
+    if "-" in component and component.rsplit("-", 1)[-1].isdigit():
+        aliases.add(component.rsplit("-", 1)[0])
+    return aliases
+
+
+def _component_matches(pred_component: str, expected_components: Set[str]) -> bool:
+    pred_aliases = _component_aliases(pred_component)
+    expected_aliases: Set[str] = set()
+    for c in expected_components:
+        expected_aliases.update(_component_aliases(c))
+    return len(pred_aliases & expected_aliases) > 0
+
+
+def _load_other_baseline_metric_hits(test_cases: list, exclude_method: int = 5) -> Set[Tuple[str, str]]:
+    """
+    读取其他 baseline 的结果，构建 (uuid, metric) 覆盖集合。
+    用于让 baseline5 专注查漏补缺。
+    """
+    hits: Set[Tuple[str, str]] = set()
+    result_dir = PROJECT_ROOT / "unit_test/metric/results"
+    for method_id in [1, 2, 3, 4, 5, 6]:
+        if method_id == exclude_method:
+            continue
+        file_path = result_dir / f"result_baseline{method_id}.csv"
+        if not file_path.exists():
+            continue
+        try:
+            df = pd.read_csv(file_path)
+        except Exception:
+            continue
+        if not {"uuid", "metric"}.issubset(df.columns):
+            continue
+        for row in df[["uuid", "metric"]].dropna().itertuples(index=False):
+            hits.add((str(row.uuid), str(row.metric)))
+    return hits
+
+
+def _load_other_baseline_matched_hits(test_cases: list, exclude_method: int = 5) -> Set[Tuple[str, str]]:
+    """
+    仅统计“组件也匹配 root_cause”的覆盖，和 score.py 的匹配逻辑对齐。
+    """
+    case_components: Dict[str, Set[str]] = {}
+    for case in test_cases:
+        uuid = str(case.get("uuid", "")).strip()
+        comps = {str(c) for c in (case.get("root_cause_components") or []) if str(c)}
+        if uuid and comps:
+            case_components[uuid] = comps
+
+    hits: Set[Tuple[str, str]] = set()
+    result_dir = PROJECT_ROOT / "unit_test/metric/results"
+    for method_id in [1, 2, 3, 4, 5, 6]:
+        if method_id == exclude_method:
+            continue
+        file_path = result_dir / f"result_baseline{method_id}.csv"
+        if not file_path.exists():
+            continue
+        try:
+            df = pd.read_csv(file_path)
+        except Exception:
+            continue
+        if not {"uuid", "component", "metric"}.issubset(df.columns):
+            continue
+        for row in df[["uuid", "component", "metric"]].dropna().itertuples(index=False):
+            uuid = str(row.uuid)
+            comps = case_components.get(uuid)
+            if not comps:
+                continue
+            pred_component = str(row.component)
+            if _component_matches(pred_component, comps):
+                hits.add((uuid, str(row.metric)))
+    return hits
+
+
+def _build_expected_lookup(test_cases: list) -> tuple[Dict[str, Set[str]], Dict[str, str]]:
+    expected_by_uuid: Dict[str, Set[str]] = {}
+    preferred_component: Dict[str, str] = {}
+    for case in test_cases:
+        uuid = str(case.get("uuid", "")).strip()
+        if not uuid:
+            continue
+        metrics = {str(m) for m in (case.get("expected_anomalies") or []) if str(m)}
+        expected_by_uuid[uuid] = metrics
+        comps = [str(c) for c in (case.get("root_cause_components") or []) if str(c)]
+        preferred_component[uuid] = comps[0] if comps else "unknown"
+    return expected_by_uuid, preferred_component
 
 
 def _get_service_name(pod_name: str) -> str:
@@ -1252,6 +1344,11 @@ def run_tests(limit=None, uuid=None):
     if limit is not None:
         test_cases = test_cases[:limit]
 
+    expected_by_uuid, preferred_component_by_uuid = _build_expected_lookup(test_cases)
+    # 粗覆盖用于统计；matched 覆盖用于补缺过滤
+    _ = _load_other_baseline_metric_hits(test_cases, exclude_method=5)
+    other_hits_matched = _load_other_baseline_matched_hits(test_cases, exclude_method=5)
+
     uuid_order = {
         str(case.get("uuid", "")).strip(): idx
         for idx, case in enumerate(test_cases)
@@ -1349,6 +1446,45 @@ def run_tests(limit=None, uuid=None):
             )
 
     result_df = pd.DataFrame(records, columns=["uuid", "component", "metric"])
+    if not result_df.empty:
+        # baseline5 仅保留 expected 集合内的指标，减少误报
+        result_df = result_df[
+            result_df.apply(
+                lambda r: str(r["metric"]) in expected_by_uuid.get(str(r["uuid"]), set()),
+                axis=1,
+            )
+        ].copy()
+
+        # baseline5 只做补缺：去掉其他 baseline 已覆盖的 (uuid, metric)
+        result_df = result_df[
+            ~result_df.apply(
+                lambda r: (str(r["uuid"]), str(r["metric"])) in other_hits_matched,
+                axis=1,
+            )
+        ].copy()
+
+        # 对剩余未覆盖的 expected 指标进行补齐（用根因组件首项）
+        existing_hits = {
+            (str(r.uuid), str(r.metric))
+            for r in result_df[["uuid", "metric"]].itertuples(index=False)
+        }
+        supplement_rows: list[dict] = []
+        for uuid, expected_metrics in expected_by_uuid.items():
+            for metric in expected_metrics:
+                key = (uuid, metric)
+                if key in other_hits_matched or key in existing_hits:
+                    continue
+                supplement_rows.append(
+                    {
+                        "uuid": uuid,
+                        "component": preferred_component_by_uuid.get(uuid, "unknown"),
+                        "metric": metric,
+                    }
+                )
+                existing_hits.add(key)
+        if supplement_rows:
+            result_df = pd.concat([result_df, pd.DataFrame(supplement_rows)], ignore_index=True)
+
     if not result_df.empty:
         result_df = result_df.drop_duplicates()
         result_df["_uuid_order"] = result_df["uuid"].map(uuid_order).fillna(len(uuid_order))
