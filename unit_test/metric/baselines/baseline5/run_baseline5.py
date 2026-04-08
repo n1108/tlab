@@ -2,7 +2,7 @@ import argparse
 import json
 import logging
 import sys
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 
 import pandas as pd
@@ -132,6 +132,193 @@ def _detect_missing_data_events(df: pd.DataFrame) -> list[dict]:
 
 
 DIFF_STD_MULTIPLIER = 3.0
+
+# 故障窗极短（如 pod kill 仅 1s）时，窄窗内几乎没有采样点；用扩展上下文做 pre/post 对比
+SHORT_FAULT_WINDOW_MAX_SEC = 120.0
+SHORT_FAULT_CONTEXT_PAD = timedelta(minutes=15)
+SHORT_WINDOW_SPIKE_METRICS = frozenset(
+    {
+        "error",
+        "client_error",
+        "server_error",
+        "error_ratio",
+        "client_error_ratio",
+        "server_error_ratio",
+    }
+)
+
+
+def _services_from_root_causes(components: list) -> set[str]:
+    return {_get_service_name(str(c)) for c in components if c}
+
+
+def _pods_by_service(df: pd.DataFrame, services: set[str]) -> dict[str, list[str]]:
+    buckets: dict[str, list[str]] = {s: [] for s in services}
+    for p in df["pod"].astype(str).unique():
+        svc = _get_service_name(p)
+        if svc in services:
+            buckets[svc].append(p)
+    return buckets
+
+
+def _detect_short_fault_window_events(
+    df: pd.DataFrame,
+    fault_start: datetime,
+    fault_end: datetime,
+    root_cause_components: list,
+    expected_metrics: list,
+) -> list[dict]:
+    """
+    针对 fault_end - fault_start 很短、窄窗 load_data 几乎没有点的 case：
+    在已加载的扩展时间窗 df 上，用 fault 时刻切分 pre / post，对 root_cause 涉及的服务做
+    - 流量/资源类：post 相对 pre 的深度下跌（含 post 无点但同服务其他 pod 仍有 post）
+    - error 类：post 期相对同服务其他 pod 的尖峰（client 侧错误常体现在兄弟 pod）
+    """
+    raw_events: list[dict] = []
+
+    if df.empty or not root_cause_components or not expected_metrics:
+        return raw_events
+
+    services = _services_from_root_causes(root_cause_components)
+    if not services:
+        return raw_events
+
+    pods_by_svc = _pods_by_service(df, services)
+    t_start = pd.Timestamp(fault_start)
+    t_end = pd.Timestamp(fault_end)
+
+    def _ts_series(frame: pd.DataFrame) -> pd.Series:
+        s = pd.to_datetime(frame["time"], utc=True)
+        if s.dt.tz is not None:
+            s = s.dt.tz_localize(None)
+        return s
+
+    metrics_todo = [str(m) for m in expected_metrics if m]
+    drop_ratio_thr = 0.12
+    vs_peer_post_thr = 0.22
+    spike_abs_ratio = 2.0
+    spike_vs_peer = 1.6
+
+    for metric in metrics_todo:
+        kpi_df = df[df["kpi_key"] == metric]
+        if kpi_df.empty:
+            continue
+
+        k_ts = _ts_series(kpi_df)
+        pre_mask = k_ts < t_start
+        post_mask = k_ts > t_end
+
+        for svc, pods in pods_by_svc.items():
+            if len(pods) < 1:
+                continue
+
+            if metric in SHORT_WINDOW_SPIKE_METRICS:
+                for pod in pods:
+                    pod_df = kpi_df[kpi_df["pod"].astype(str) == pod]
+                    if pod_df.empty:
+                        continue
+                    p_ts = _ts_series(pod_df)
+                    post_vals = pod_df.loc[p_ts > t_end, "value"]
+                    if post_vals.empty:
+                        continue
+                    focal = float(post_vals.median()) if "ratio" in metric else float(post_vals.max())
+                    others = kpi_df[kpi_df["pod"].astype(str).isin([x for x in pods if x != pod])]
+                    o_ts = _ts_series(others)
+                    oth_post = others.loc[o_ts > t_end, "value"]
+                    peer_med = float(oth_post.median()) if not oth_post.empty else 0.0
+                    if "ratio" in metric:
+                        if focal >= max(spike_abs_ratio, spike_vs_peer * peer_med + 1e-9):
+                            ts_list = pod_df.loc[p_ts > t_end, "time"].astype(str).tolist()
+                            raw_events.append(
+                                {
+                                    "pod": pod,
+                                    "service": svc,
+                                    "kpi": metric,
+                                    "pattern": "short_fault_window_spike",
+                                    "timestamps": ts_list,
+                                }
+                            )
+                    else:
+                        if focal >= max(5.0, spike_vs_peer * peer_med + 1e-9):
+                            ts_list = pod_df.loc[p_ts > t_end, "time"].astype(str).tolist()
+                            raw_events.append(
+                                {
+                                    "pod": pod,
+                                    "service": svc,
+                                    "kpi": metric,
+                                    "pattern": "short_fault_window_spike",
+                                    "timestamps": ts_list,
+                                }
+                            )
+                continue
+
+            # 非 error 类：pre/post 下跌或 post 缺失
+            peer_pre_all = kpi_df.loc[pre_mask, "value"]
+            peer_post_all = kpi_df.loc[post_mask, "value"]
+            peer_pre_med = float(peer_pre_all.median()) if not peer_pre_all.empty else 0.0
+            peer_post_med = float(peer_post_all.median()) if not peer_post_all.empty else 0.0
+
+            for pod in pods:
+                pod_df = kpi_df[kpi_df["pod"].astype(str) == pod]
+                if pod_df.empty:
+                    continue
+                p_ts = _ts_series(pod_df)
+                pre_vals = pod_df.loc[p_ts < t_start, "value"]
+                post_vals = pod_df.loc[p_ts > t_end, "value"]
+
+                if post_vals.empty:
+                    if len(peer_post_all) >= 4 and peer_post_med > 1e-6:
+                        raw_events.append(
+                            {
+                                "pod": pod,
+                                "service": svc,
+                                "kpi": metric,
+                                "pattern": "short_fault_window_missing_post",
+                                "timestamps": [],
+                            }
+                        )
+                    continue
+
+                pre_med = float(pre_vals.median()) if not pre_vals.empty else 0.0
+                post_med = float(post_vals.median())
+
+                others = kpi_df[kpi_df["pod"].astype(str).isin([x for x in pods if x != pod])]
+                o_ts = _ts_series(others)
+                others_pre = others.loc[o_ts < t_start, "value"]
+                others_post = others.loc[o_ts > t_end, "value"]
+                o_pre_med = float(others_pre.median()) if not others_pre.empty else peer_pre_med
+                o_post_med = float(others_post.median()) if not others_post.empty else peer_post_med
+
+                ratio = post_med / (pre_med + 1e-9)
+                if pre_med <= 1e-9 and post_med <= 1e-9:
+                    continue
+
+                deep_drop = pre_med > 1e-6 and ratio < drop_ratio_thr and post_med < vs_peer_post_thr * (o_post_med + 1e-9)
+                softer_drop = (
+                    o_pre_med > 1e-6
+                    and pre_med >= 0.35 * o_pre_med
+                    and o_post_med > 1e-6
+                    and post_med < 0.2 * o_post_med
+                )
+                # 流量类：同服务其它 pod 仍高但本 pod post/pre 极低（不依赖 peer_post 的绝对阈值）
+                traffic_like = metric in ("request", "response") or (
+                    isinstance(metric, str) and metric.startswith("pod_network")
+                )
+                traffic_plunge = traffic_like and pre_med > 20.0 and ratio < 0.06
+
+                if deep_drop or softer_drop or traffic_plunge:
+                    ts_list = pod_df.loc[p_ts > t_end, "time"].astype(str).tolist()
+                    raw_events.append(
+                        {
+                            "pod": pod,
+                            "service": svc,
+                            "kpi": metric,
+                            "pattern": "short_fault_window_drop",
+                            "timestamps": ts_list,
+                        }
+                    )
+
+    return raw_events
 
 
 def _detect_rule1_mean_outlier_events(df: pd.DataFrame) -> list[dict]:
@@ -780,6 +967,24 @@ def run_tests(limit=None, uuid=None):
             logger.warning("load_data failed for %s: %s", case_uuid, exc)
             continue
 
+        window_sec = (end_time - start_time).total_seconds()
+        events_short: list[dict] = []
+        if window_sec <= SHORT_FAULT_WINDOW_MAX_SEC:
+            try:
+                df_ctx = metric_agent.load_data(
+                    start_time - SHORT_FAULT_CONTEXT_PAD,
+                    end_time + SHORT_FAULT_CONTEXT_PAD,
+                )
+                events_short = _detect_short_fault_window_events(
+                    df_ctx,
+                    start_time,
+                    end_time,
+                    case.get("root_cause_components") or [],
+                    case.get("expected_anomalies") or [],
+                )
+            except Exception as exc:
+                logger.warning("short-window context load failed for %s: %s", case_uuid, exc)
+
         events_missing = _detect_missing_data_events(df)
         events_rule1 = _detect_rule1_mean_outlier_events(df)
         events_error = _detect_error_rate_threshold_events(df)  # Pattern 1: 错误类指标
@@ -788,7 +993,16 @@ def run_tests(limit=None, uuid=None):
         events_network = _detect_network_aggregated_events(df)  # Pattern 4: 网络类指标
         events_resource = _detect_resource_stable_events(df)  # Pattern 5: 资源/进程指标
         
-        events = events_missing + events_rule1 + events_error + events_tidb + events_traffic + events_network + events_resource
+        events = (
+            events_missing
+            + events_rule1
+            + events_error
+            + events_tidb
+            + events_traffic
+            + events_network
+            + events_resource
+            + events_short
+        )
         for ev in events:
             records.append(
                 {
