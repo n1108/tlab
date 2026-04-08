@@ -231,6 +231,37 @@ SHORT_WINDOW_RATIO_TO_BASE = {
     "server_error_ratio": "server_error",
 }
 
+GENERAL_CONTEXT_PAD = timedelta(minutes=10)
+
+CONTEXT_METRIC_DIRECTIONS = {
+    "request": "drop",
+    "response": "drop",
+    "pod_network_receive_bytes": "drop",
+    "pod_network_receive_packets": "drop",
+    "pod_network_transmit_bytes": "drop",
+    "pod_network_transmit_packets": "drop",
+    "rrt": "rise",
+    "rrt_max": "rise",
+    "error": "rise",
+    "client_error": "rise",
+    "server_error": "rise",
+    "error_ratio": "rise",
+    "client_error_ratio": "rise",
+    "server_error_ratio": "rise",
+    "timeout": "rise",
+    "pod_cpu_usage": "shift",
+    "pod_memory_working_set_bytes": "shift",
+    "pod_processes": "shift",
+    "node_cpu_usage_rate": "shift",
+    "node_memory_usage_rate": "shift",
+    "node_memory_MemAvailable_bytes": "drop",
+    "node_filesystem_usage_rate": "rise",
+    "node_network_receive_packets_total": "shift",
+    "node_network_transmit_packets_total": "shift",
+    "node_disk_read_bytes_total": "shift",
+    "node_disk_read_time_seconds_total": "shift",
+}
+
 
 def _services_from_root_causes(components: list) -> set[str]:
     return {_get_service_name(str(c)) for c in components if c}
@@ -572,6 +603,238 @@ def _detect_tidb_component_trend_events(
                     }
                 )
 
+    return raw_events
+
+
+def _detect_context_shift_events(
+    df_ctx: pd.DataFrame,
+    fault_start: datetime,
+    fault_end: datetime,
+    root_cause_components: list,
+) -> list[dict]:
+    raw_events: list[dict] = []
+    if df_ctx.empty or not root_cause_components:
+        return raw_events
+    if not {"time", "pod", "kpi_key", "value"}.issubset(df_ctx.columns):
+        return raw_events
+
+    ts = pd.to_datetime(df_ctx["time"], utc=True)
+    if ts.dt.tz is not None:
+        ts = ts.dt.tz_localize(None)
+    df = df_ctx.copy()
+    df["_ts"] = ts
+    t_start = pd.Timestamp(fault_start)
+    t_end = pd.Timestamp(fault_end)
+
+    pre_df = df[df["_ts"] < t_start]
+    fault_df = df[(df["_ts"] >= t_start) & (df["_ts"] <= t_end)]
+    post_df = df[df["_ts"] > t_end]
+    if pre_df.empty or (fault_df.empty and post_df.empty):
+        return raw_events
+
+    root_components = [str(c) for c in root_cause_components if c]
+    root_services = {_get_service_name(c) for c in root_components}
+    candidate_metrics = {str(m) for m in df["kpi_key"].dropna().astype(str).unique()}
+    candidate_metrics &= set(CONTEXT_METRIC_DIRECTIONS.keys())
+
+    # include TiDB high-frequency misses
+    candidate_metrics |= {
+        "io_util",
+        "raft_apply_wait",
+        "snapshot_apply_count",
+        "store_size",
+        "region_pending",
+        "qps",
+        "grpc_qps",
+        "memory_usage",
+        "cpu_usage",
+        "block_cache_size",
+        "connection_count",
+        "uptime",
+        "failed_query_ops",
+        "abnormal_region_count",
+        "leader_count",
+        "region_health",
+    } & {str(m) for m in df["kpi_key"].dropna().astype(str).unique()}
+
+    for metric in sorted(candidate_metrics):
+        direction = CONTEXT_METRIC_DIRECTIONS.get(metric, "shift")
+        kdf = df[df["kpi_key"] == metric]
+        if kdf.empty:
+            continue
+        for pod, pod_df in kdf.groupby("pod"):
+            pod_name = str(pod)
+            service = _get_service_name(pod_name)
+            matched = (
+                any(pod_name.startswith(rc) for rc in root_components)
+                or service in root_services
+            )
+            if not matched:
+                continue
+
+            pre_vals = pod_df[pod_df["_ts"] < t_start]["value"].astype(float)
+            fault_vals = pod_df[(pod_df["_ts"] >= t_start) & (pod_df["_ts"] <= t_end)]["value"].astype(float)
+            post_vals = pod_df[pod_df["_ts"] > t_end]["value"].astype(float)
+            if len(pre_vals) < 3:
+                continue
+            target_vals = fault_vals if len(fault_vals) >= 2 else post_vals
+            if len(target_vals) < 2:
+                continue
+
+            pre_med = float(pre_vals.median())
+            cur_med = float(target_vals.median())
+            ratio = cur_med / (abs(pre_med) + 1e-9)
+            abs_delta = abs(cur_med - pre_med)
+
+            if metric == "pod_processes":
+                is_anomaly = abs_delta >= 1.0
+            elif direction == "drop":
+                is_anomaly = pre_med > 1e-6 and ratio < 0.55
+            elif direction == "rise":
+                is_anomaly = (cur_med > pre_med * 1.7 and abs_delta > 0.02) or (pre_med < 1e-6 and cur_med > 0.1)
+            else:
+                is_anomaly = (ratio > 1.8 or ratio < 0.55) and abs_delta > max(0.02, 0.25 * abs(pre_med))
+
+            if not is_anomaly:
+                continue
+            raw_events.append(
+                {
+                    "pod": pod_name,
+                    "service": service,
+                    "kpi": metric,
+                    "pattern": "context_shift",
+                    "timestamps": pod_df["time"].astype(str).tolist(),
+                }
+            )
+
+    return raw_events
+
+
+def _detect_root_service_aggregate_events(
+    df_ctx: pd.DataFrame,
+    fault_start: datetime,
+    fault_end: datetime,
+    root_cause_components: list,
+) -> list[dict]:
+    raw_events: list[dict] = []
+    if df_ctx.empty or not root_cause_components:
+        return raw_events
+
+    agg_metrics = {
+        "request": "drop",
+        "response": "drop",
+        "error": "rise",
+        "client_error": "rise",
+        "server_error": "rise",
+        "error_ratio": "rise",
+        "client_error_ratio": "rise",
+        "server_error_ratio": "rise",
+    }
+    ts = pd.to_datetime(df_ctx["time"], utc=True)
+    if ts.dt.tz is not None:
+        ts = ts.dt.tz_localize(None)
+    df = df_ctx.copy()
+    df["_ts"] = ts
+    t_start = pd.Timestamp(fault_start)
+    t_end = pd.Timestamp(fault_end)
+
+    for comp in [str(c) for c in root_cause_components if c]:
+        svc = _get_service_name(comp)
+        svc_df = df[df["pod"].astype(str).str.startswith(svc)]
+        if svc_df.empty:
+            continue
+        for metric, direction in agg_metrics.items():
+            mdf = svc_df[svc_df["kpi_key"] == metric]
+            if mdf.empty:
+                continue
+            pre = mdf[mdf["_ts"] < t_start]["value"].astype(float)
+            cur = mdf[(mdf["_ts"] >= t_start) & (mdf["_ts"] <= t_end)]["value"].astype(float)
+            if len(cur) < 2:
+                cur = mdf[mdf["_ts"] > t_end]["value"].astype(float)
+            if len(pre) < 3 or len(cur) < 2:
+                continue
+            pre_med = float(pre.median())
+            cur_med = float(cur.median())
+            ratio = cur_med / (abs(pre_med) + 1e-9)
+            if direction == "drop":
+                is_anomaly = pre_med > 1e-6 and ratio < 0.6
+            else:
+                is_anomaly = (cur_med > pre_med * 1.5 and abs(cur_med - pre_med) > 0.01) or (pre_med < 1e-6 and cur_med > 0.05)
+            if not is_anomaly:
+                continue
+            raw_events.append(
+                {
+                    "pod": comp,
+                    "service": svc,
+                    "kpi": metric,
+                    "pattern": "root_service_aggregate_shift",
+                    "timestamps": mdf["time"].astype(str).tolist(),
+                }
+            )
+    return raw_events
+
+
+def _detect_tidb_root_component_events(
+    df_ctx: pd.DataFrame,
+    fault_start: datetime,
+    fault_end: datetime,
+    root_cause_components: list,
+) -> list[dict]:
+    raw_events: list[dict] = []
+    if df_ctx.empty or not root_cause_components:
+        return raw_events
+    ts = pd.to_datetime(df_ctx["time"], utc=True)
+    if ts.dt.tz is not None:
+        ts = ts.dt.tz_localize(None)
+    df = df_ctx.copy()
+    df["_ts"] = ts
+    t_start = pd.Timestamp(fault_start)
+    t_end = pd.Timestamp(fault_end)
+
+    tidb_metrics = {
+        "store_size", "memory_usage", "cpu_usage", "qps", "grpc_qps",
+        "region_pending", "io_util", "raft_apply_wait", "snapshot_apply_count",
+        "block_cache_size", "connection_count", "uptime", "failed_query_ops",
+        "region_health", "abnormal_region_count", "leader_count",
+    }
+    state_metrics = {"region_health", "abnormal_region_count", "leader_count", "failed_query_ops"}
+
+    for comp in [str(c) for c in root_cause_components if str(c).startswith("tidb-")]:
+        cdf = df[df["pod"].astype(str).str.startswith(comp)]
+        if cdf.empty:
+            continue
+        present = tidb_metrics & {str(m) for m in cdf["kpi_key"].dropna().astype(str).unique()}
+        for metric in sorted(present):
+            mdf = cdf[cdf["kpi_key"] == metric]
+            if len(mdf) < 4:
+                continue
+            pre = mdf[mdf["_ts"] < t_start]["value"].astype(float)
+            cur = mdf[(mdf["_ts"] >= t_start) & (mdf["_ts"] <= t_end)]["value"].astype(float)
+            if len(cur) < 2:
+                cur = mdf[mdf["_ts"] > t_end]["value"].astype(float)
+            if len(pre) < 2 or len(cur) < 2:
+                continue
+            pre_med = float(pre.median())
+            cur_med = float(cur.median())
+            cur_span = float(cur.max() - cur.min()) if len(cur) >= 2 else 0.0
+            abs_delta = abs(cur_med - pre_med)
+            ratio = abs_delta / (abs(pre_med) + 1e-9)
+
+            if metric in state_metrics:
+                is_anomaly = abs_delta > 0.0 or cur_span > 0.0
+            else:
+                is_anomaly = ratio > 0.08 or abs_delta > 0.03 or cur_span > max(0.03, 0.05 * abs(cur_med))
+            if not is_anomaly:
+                continue
+            raw_events.append(
+                {
+                    "pod": comp,
+                    "service": _get_service_name(comp),
+                    "kpi": metric,
+                    "pattern": "tidb_root_component_shift",
+                    "timestamps": mdf["time"].astype(str).tolist(),
+                }
+            )
     return raw_events
 
 
@@ -1290,14 +1553,46 @@ def run_tests(limit=None, uuid=None):
         window_sec = (end_time - start_time).total_seconds()
         events_short: list[dict] = []
         events_tidb_component: list[dict] = []
+        events_context: list[dict] = []
+        events_root_agg: list[dict] = []
+        events_tidb_root: list[dict] = []
+        df_ctx: pd.DataFrame | None = None
+        try:
+            df_ctx = metric_agent.load_data(
+                start_time - GENERAL_CONTEXT_PAD,
+                end_time + GENERAL_CONTEXT_PAD,
+            )
+            events_context = _detect_context_shift_events(
+                df_ctx,
+                start_time,
+                end_time,
+                case.get("root_cause_components") or [],
+            )
+            events_root_agg = _detect_root_service_aggregate_events(
+                df_ctx,
+                start_time,
+                end_time,
+                case.get("root_cause_components") or [],
+            )
+            events_tidb_root = _detect_tidb_root_component_events(
+                df_ctx,
+                start_time,
+                end_time,
+                case.get("root_cause_components") or [],
+            )
+        except Exception as exc:
+            logger.warning("general context load failed for %s: %s", case_uuid, exc)
+
         if window_sec <= SHORT_FAULT_WINDOW_MAX_SEC:
             try:
-                df_ctx = metric_agent.load_data(
-                    start_time - SHORT_FAULT_CONTEXT_PAD,
-                    end_time + SHORT_FAULT_CONTEXT_PAD,
-                )
+                short_ctx = df_ctx
+                if short_ctx is None:
+                    short_ctx = metric_agent.load_data(
+                        start_time - SHORT_FAULT_CONTEXT_PAD,
+                        end_time + SHORT_FAULT_CONTEXT_PAD,
+                    )
                 events_short = _detect_short_fault_window_events(
-                    df_ctx,
+                    short_ctx,
                     start_time,
                     end_time,
                     case.get("root_cause_components") or [],
@@ -1331,6 +1626,9 @@ def run_tests(limit=None, uuid=None):
             + events_traffic
             + events_network
             + events_resource
+            + events_context
+            + events_root_agg
+            + events_tidb_root
             + events_short
             + events_tidb_component
         )
