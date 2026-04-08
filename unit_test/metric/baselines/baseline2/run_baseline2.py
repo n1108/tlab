@@ -158,9 +158,9 @@ def run_tests(limit=None, uuid=None):
             .reset_index(drop=True)
         )
 
-    output_dir = PROJECT_ROOT / "unit-test/metric/results"
+    output_dir = PROJECT_ROOT / "unit_test/metric/results"
     output_dir.mkdir(parents=True, exist_ok=True)
-    output_file = output_dir / "result_baseline_2.csv"
+    output_file = output_dir / "result_baseline2.csv"
     result_df.to_csv(output_file, index=False)
     logger.info("saved %d anomaly rows to %s", len(result_df), output_file)
 
@@ -173,4 +173,4 @@ if __name__ == "__main__":
 
     run_tests(limit=args.limit, uuid=args.uuid)
 
-# python3 unit-test/metric/baselines/baseline-2/run_baseline-2.py --limit=5
+# python3 unit_test/metric/baselines/baseline-2/run_baseline-2.py --limit=5

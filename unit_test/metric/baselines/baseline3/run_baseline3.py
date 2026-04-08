@@ -40,7 +40,7 @@ class MethodResult:
 
 class HybridMetricDetector:
     """
-    baseline-3: 4-method fusion
+    baseline3: 4-method fusion
     1) Mann-Whitney U / Welch t-test
     2) Mean ± k*std threshold exceedance
     3) Standardized bias + variance ratio
@@ -192,7 +192,7 @@ def _load_test_cases() -> list:
 
 def run_tests(limit=None, uuid=None):
     sys.path.insert(0, str(PROJECT_ROOT))
-    from unit_test.metric.baselines.baseline3.metric import MetricAgent
+    from unit_test.metric.baselines.baseline1.metric import MetricAgent
 
     dataset_root = PROJECT_ROOT / "dataset"
     if not dataset_root.exists():
@@ -218,7 +218,7 @@ def run_tests(limit=None, uuid=None):
     loader_agent = MetricAgent(str(dataset_root))
 
     records = []
-    for case in tqdm(test_cases, desc="Running baseline-3"):
+    for case in tqdm(test_cases, desc="Running baseline3"):
         case_uuid = str(case.get("uuid", "")).strip()
         start_str = case.get("start_time")
         end_str = case.get("end_time")
@@ -271,7 +271,7 @@ def run_tests(limit=None, uuid=None):
             .reset_index(drop=True)
         )
 
-    output_dir = PROJECT_ROOT / "unit-test/metric/results"
+    output_dir = PROJECT_ROOT / "unit_test/metric/results"
     output_dir.mkdir(parents=True, exist_ok=True)
     output_file = output_dir / "result_baseline_3.csv"
     result_df.to_csv(output_file, index=False)
@@ -286,4 +286,4 @@ if __name__ == "__main__":
 
     run_tests(limit=args.limit, uuid=args.uuid)
 
-# python3 unit-test/metric/baselines/baseline-3/run_baseline.py --limit=5
+# python3 unit_test/metric/baselines/baseline3/run_baseline.py --limit=5
