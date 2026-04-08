@@ -104,6 +104,12 @@ def run_rag_case(
         }
 
     toolkit = DetectionToolkit(dataset_root)
+    prefetch_enabled = os.getenv("RAG_PREFETCH_TOOLS", "1").lower() in {"1", "true", "yes", "on"}
+    if prefetch_enabled:
+        try:
+            toolkit.prefetch_all(start, end)
+        except Exception as e:
+            logger.warning("tool prefetch failed, continue without prefetch: %s", e)
     tools = openai_tool_schemas()
     messages: List[Dict[str, Any]] = [
         {"role": "system", "content": RAG_AGENT_SYSTEM_PROMPT},
@@ -116,7 +122,7 @@ def run_rag_case(
         timeout=judge.request_timeout,
         max_retries=0,
     )
-    model = judge.model or "deepseek-chat"
+    model = judge.model or "reasoner"
     temperature = float(os.getenv("RAG_AGENT_TEMPERATURE", str(judge.temperature)))
 
     submit_result: Optional[Dict[str, Any]] = None

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 from datetime import datetime
+from concurrent.futures import ThreadPoolExecutor
 from typing import Any, Dict, List, Optional, Tuple
 
 from rag_agent.bundled.agent.judge import JudgeAgent
@@ -27,6 +28,7 @@ class DetectionToolkit:
         self.log_agent = LogAgent(dataset_root)
         self._formatter: Optional[JudgeAgent] = None
         self._cache: Dict[str, Any] = {}
+        self._formatted_cache: Dict[str, str] = {}
 
     def _format(self, obs: Any, source_type: str) -> str:
         if self._formatter is None:
@@ -45,8 +47,10 @@ class DetectionToolkit:
             logger.info("Tool get_metric_anomalies: running detector")
             raw = self.metric_agent.score(start, end)
             self._cache[key] = raw
-        raw = self._cache[key]
-        return self._clip(self._format(raw, "metric"))
+        if key not in self._formatted_cache:
+            raw = self._cache[key]
+            self._formatted_cache[key] = self._clip(self._format(raw, "metric"))
+        return self._formatted_cache[key]
 
     def get_trace_anomalies(self, start: datetime, end: datetime) -> str:
         key = "trace"
@@ -54,8 +58,10 @@ class DetectionToolkit:
             logger.info("Tool get_trace_anomalies: running detector")
             raw = self.trace_agent.score(start, end)
             self._cache[key] = raw
-        raw = self._cache[key]
-        return self._clip(self._format(raw, "trace"))
+        if key not in self._formatted_cache:
+            raw = self._cache[key]
+            self._formatted_cache[key] = self._clip(self._format(raw, "trace"))
+        return self._formatted_cache[key]
 
     def get_log_anomalies(self, start: datetime, end: datetime) -> str:
         key = "log"
@@ -63,8 +69,31 @@ class DetectionToolkit:
             logger.info("Tool get_log_anomalies: running detector")
             raw = self.log_agent.score(start, end)
             self._cache[key] = raw
-        raw = self._cache[key]
-        return self._clip(self._format(raw, "log"))
+        if key not in self._formatted_cache:
+            raw = self._cache[key]
+            self._formatted_cache[key] = self._clip(self._format(raw, "log"))
+        return self._formatted_cache[key]
+
+    def prefetch_all(self, start: datetime, end: datetime) -> None:
+        """
+        Warm all detector caches in parallel for faster tool rounds.
+        Safe to call multiple times.
+        """
+        missing = [k for k in ("metric", "trace", "log") if k not in self._cache]
+        if not missing:
+            return
+
+        def _run(name: str):
+            if name == "metric":
+                self._cache["metric"] = self.metric_agent.score(start, end)
+            elif name == "trace":
+                self._cache["trace"] = self.trace_agent.score(start, end)
+            elif name == "log":
+                self._cache["log"] = self.log_agent.score(start, end)
+
+        workers = min(3, len(missing))
+        with ThreadPoolExecutor(max_workers=workers) as pool:
+            list(pool.map(_run, missing))
 
     def dispatch(
         self, name: str, start: datetime, end: datetime

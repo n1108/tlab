@@ -34,22 +34,22 @@ pip install -r requirements.txt
 # 或: pip install -e .
 ```
 
-配置大模型凭证（与 `exp` 相同的环境变量习惯）：
+配置大模型凭证（默认走 Yuzo）：
 
-- `DEEPSEEK_API_KEY` / `DEEPSEEK_API_URL`，或使用 `--llm-api-key`。
+- `YUZO_API_KEY` / `YUZO_API_URL`，或使用 `--llm-api-key`、`--llm-api-url`。
 
 ## 运行
 
 在 **tlab** 仓库根目录（`RAG-Agent` 的上一级）执行时，默认 `--dataset-root` 会解析为 **`tlab/dataset`**：
 
 ```bash
-PYTHONPATH=RAG-Agent python -m rag_agent --limit 1
+PYTHONPATH=RAG-Agent python -m rag_agent --limit 1 --max-workers 4
 ```
 
 在 **RAG-Agent** 目录内执行：
 
 ```bash
-PYTHONPATH=. python -m rag_agent --dataset-root ../dataset --limit 1 --uuid <UUID>
+PYTHONPATH=. python -m rag_agent --dataset-root ../dataset --limit 1 --uuid <UUID> --llm-provider yuzo
 ```
 
 输出：
@@ -67,5 +67,8 @@ PYTHONPATH=. python -m rag_agent --dataset-root ../dataset --limit 1 --uuid <UUI
 
 - 工具调用需要支持 **`tools` 参数** 的 **OpenAI 兼容** API。若在 `--max-turns` 内模型始终未调用 `submit_root_cause_analysis`，编排器会使用 **回退** 的单次分析。
 - 即使只做最小冒烟测试，只要会触发检测器，该时间窗内仍需存在有效的 parquet 数据路径。
+- 提速默认项：
+  - case 级并行：`--max-workers`（默认 `4`）
+  - 单 case 内 metric/trace/log 预取并行：环境变量 `RAG_PREFETCH_TOOLS=1`（默认开启）
 
 更多中文步骤见 **`运行说明.md`**。
