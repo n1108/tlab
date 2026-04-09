@@ -1,10 +1,11 @@
 import argparse
 import json
 import logging
+import re
 import sys
 from datetime import datetime, timedelta
 from pathlib import Path
-from typing import Dict, Set, Tuple
+from typing import Set, Tuple
 
 import pandas as pd
 from tqdm import tqdm
@@ -62,73 +63,61 @@ def _parse_iso_utc(time_str: str) -> datetime:
     return dt
 
 
-def _load_test_cases() -> list:
-    dataset_path = PROJECT_ROOT / "unit_test/metric/data/metric_dataset.json"
+_ISO_TS_IN_DESC = re.compile(r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z")
+
+
+def _fault_window_from_anomaly_description(desc: str) -> tuple[str, str] | None:
+    """从官方 input.json 的英文描述中抽取起止时间（两段 ISO8601 Z）。"""
+    if not desc:
+        return None
+    parts = _ISO_TS_IN_DESC.findall(desc)
+    if len(parts) != 2:
+        return None
+    return parts[0], parts[1]
+
+
+def _load_test_cases(input_json: Path | None = None) -> list:
+    """
+    从 dataset/input.json 读取 uuid 与故障窗：时间仅来自「Anomaly Description」文本中的两个时间戳，
+    不使用带标签的 metric_dataset.json。
+    """
+    dataset_path = input_json or (PROJECT_ROOT / "dataset/input.json")
     if not dataset_path.exists():
-        raise FileNotFoundError(f"test dataset not found: {dataset_path}")
+        raise FileNotFoundError(f"input dataset not found: {dataset_path}")
 
     with dataset_path.open("r", encoding="utf-8") as f:
         data = json.load(f)
 
     if not isinstance(data, list):
-        raise ValueError(f"invalid test dataset format: {dataset_path}")
+        raise ValueError(f"invalid input.json format: {dataset_path}")
 
-    return data
-
-
-def _component_aliases(component: str) -> Set[str]:
-    aliases = {component}
-    if component.startswith("aiops-k8s-"):
-        return aliases
-    if "-" in component and component.rsplit("-", 1)[-1].isdigit():
-        aliases.add(component.rsplit("-", 1)[0])
-    return aliases
-
-
-def _component_matches(pred_component: str, expected_components: Set[str]) -> bool:
-    pred_aliases = _component_aliases(pred_component)
-    expected_aliases: Set[str] = set()
-    for c in expected_components:
-        expected_aliases.update(_component_aliases(c))
-    return len(pred_aliases & expected_aliases) > 0
-
-
-def _load_other_baseline_metric_hits(test_cases: list, exclude_method: int = 5) -> Set[Tuple[str, str]]:
-    """
-    读取其他 baseline 的结果，构建 (uuid, metric) 覆盖集合。
-    用于让 baseline5 专注查漏补缺。
-    """
-    hits: Set[Tuple[str, str]] = set()
-    result_dir = PROJECT_ROOT / "unit_test/metric/results"
-    for method_id in [1, 2, 3, 4, 5, 6]:
-        if method_id == exclude_method:
+    out: list = []
+    for item in data:
+        if not isinstance(item, dict):
             continue
-        file_path = result_dir / f"result_baseline{method_id}.csv"
-        if not file_path.exists():
+        u = str(item.get("uuid", "")).strip()
+        desc = item.get("Anomaly Description")
+        if not u or desc is None:
             continue
-        try:
-            df = pd.read_csv(file_path)
-        except Exception:
+        window = _fault_window_from_anomaly_description(str(desc))
+        if window is None:
+            logger.warning("skip %s: could not parse two ISO timestamps from description", u)
             continue
-        if not {"uuid", "metric"}.issubset(df.columns):
-            continue
-        for row in df[["uuid", "metric"]].dropna().itertuples(index=False):
-            hits.add((str(row.uuid), str(row.metric)))
-    return hits
+        st, et = window
+        out.append({"uuid": u, "start_time": st, "end_time": et})
+    return out
 
 
-def _load_other_baseline_matched_hits(test_cases: list, exclude_method: int = 5) -> Set[Tuple[str, str]]:
+def _load_other_baseline_triplet_hits(uuids: Set[str], exclude_method: int = 5) -> Set[Tuple[str, str, str]]:
     """
-    仅统计“组件也匹配 root_cause”的覆盖，和 score.py 的匹配逻辑对齐。
-    """
-    case_components: Dict[str, Set[str]] = {}
-    for case in test_cases:
-        uuid = str(case.get("uuid", "")).strip()
-        comps = {str(c) for c in (case.get("root_cause_components") or []) if str(c)}
-        if uuid and comps:
-            case_components[uuid] = comps
+    读取其他 baseline 已给出的 (uuid, component, metric)。
+    补缺时只去掉「同一 uuid 上、同一 pod、同一指标」已由他人报过的行。
 
-    hits: Set[Tuple[str, str]] = set()
+    注意：若只用 (uuid, metric) 去重，当 baseline1 在错误 pod 上报了 error 时，
+    会把 baseline5 在正确 pod 上的 error 整行删掉，而评分要求 component 与根因一致，
+    错误 pod 的命中不计分，导致分数虚低。此处不读 metric_dataset，仅用各 baseline 输出做精确去重。
+    """
+    hits: Set[Tuple[str, str, str]] = set()
     result_dir = PROJECT_ROOT / "unit_test/metric/results"
     for method_id in [1, 2, 3, 4, 5, 6]:
         if method_id == exclude_method:
@@ -143,13 +132,9 @@ def _load_other_baseline_matched_hits(test_cases: list, exclude_method: int = 5)
         if not {"uuid", "component", "metric"}.issubset(df.columns):
             continue
         for row in df[["uuid", "component", "metric"]].dropna().itertuples(index=False):
-            uuid = str(row.uuid)
-            comps = case_components.get(uuid)
-            if not comps:
-                continue
-            pred_component = str(row.component)
-            if _component_matches(pred_component, comps):
-                hits.add((uuid, str(row.metric)))
+            uid = str(row.uuid)
+            if uid in uuids:
+                hits.add((uid, str(row.component), str(row.metric)))
     return hits
 
 
@@ -211,7 +196,7 @@ def _detect_missing_data_events(df: pd.DataFrame) -> list[dict]:
 
 DIFF_STD_MULTIPLIER = 3.0
 
-# 故障窗极短（如 pod kill 仅 1s）时，窄窗内几乎没有采样点；用扩展上下文做 pre/post 对比
+# 故障窗极短（如仅数秒）时，窄窗内几乎没有采样点；用扩展上下文做 pre/post 对比
 SHORT_FAULT_WINDOW_MAX_SEC = 120.0
 SHORT_FAULT_CONTEXT_PAD = timedelta(minutes=15)
 SHORT_WINDOW_SPIKE_METRICS = frozenset(
@@ -263,42 +248,60 @@ CONTEXT_METRIC_DIRECTIONS = {
 }
 
 
-def _services_from_root_causes(components: list) -> set[str]:
-    return {_get_service_name(str(c)) for c in components if c}
-
-
-def _pods_by_service(df: pd.DataFrame, services: set[str]) -> dict[str, list[str]]:
-    buckets: dict[str, list[str]] = {s: [] for s in services}
+def _pods_by_service_all(df: pd.DataFrame) -> dict[str, list[str]]:
+    buckets: dict[str, list[str]] = {}
     for p in df["pod"].astype(str).unique():
-        svc = _get_service_name(p)
-        if svc in services:
-            buckets[svc].append(p)
+        svc = _get_service_name(str(p))
+        buckets.setdefault(svc, []).append(str(p))
     return buckets
+
+
+def _service_request_response_plunge(
+    df: pd.DataFrame,
+    svc: str,
+    pods: list,
+    t_start: pd.Timestamp,
+    t_end: pd.Timestamp,
+    _ts_series,
+) -> bool:
+    """服务级 request/response 在 fault 后相对 fault 前断崖（数据驱动，替代原 fault_type=pod kill 特判）。"""
+    for traffic_m in ("request", "response"):
+        tdf = df[(df["kpi_key"] == traffic_m) & (df["pod"].astype(str).isin(pods))]
+        if tdf.empty:
+            continue
+        s_ts = _ts_series(tdf)
+        svc_pre = tdf.loc[s_ts < t_start, "value"]
+        svc_post = tdf.loc[s_ts > t_end, "value"]
+        if svc_post.empty:
+            continue
+        pre_med = float(svc_pre.median()) if not svc_pre.empty else 0.0
+        post_med = float(svc_post.median())
+        if (pre_med > 0.5 and post_med < 0.6 * pre_med) or (post_med < 1.0 and pre_med > 2.0):
+            return True
+    return False
 
 
 def _detect_short_fault_window_events(
     df: pd.DataFrame,
     fault_start: datetime,
     fault_end: datetime,
-    root_cause_components: list,
-    fault_type: str = "",
 ) -> list[dict]:
     """
     针对 fault_end - fault_start 很短、窄窗 load_data 几乎没有点的 case：
-    在已加载的扩展时间窗 df 上，用 fault 时刻切分 pre / post，对 root_cause 涉及的服务做
+    在已加载的扩展时间窗 df 上，用 fault 时刻切分 pre / post，对数据中出现的各服务做
     - 流量/资源类：post 相对 pre 的深度下跌（含 post 无点但同服务其他 pod 仍有 post）
-    - error 类：post 期相对同服务其他 pod 的尖峰（client 侧错误常体现在兄弟 pod）
+    - error 类：post 期相对同服务其他 pod 的尖峰
+    短窗宽松补检由「服务级 request/response 断崖」触发，不读取 fault_type。
     """
     raw_events: list[dict] = []
 
-    if df.empty or not root_cause_components:
+    if df.empty:
         return raw_events
 
-    services = _services_from_root_causes(root_cause_components)
-    if not services:
+    pods_by_svc = _pods_by_service_all(df)
+    if not pods_by_svc:
         return raw_events
 
-    pods_by_svc = _pods_by_service(df, services)
     t_start = pd.Timestamp(fault_start)
     t_end = pd.Timestamp(fault_end)
 
@@ -307,6 +310,12 @@ def _detect_short_fault_window_events(
         if s.dt.tz is not None:
             s = s.dt.tz_localize(None)
         return s
+
+    plunge_by_svc = {
+        svc: _service_request_response_plunge(df, svc, pods, t_start, t_end, _ts_series)
+        for svc, pods in pods_by_svc.items()
+    }
+    any_svc_plunge = any(plunge_by_svc.values())
 
     candidate_metrics = (
         set(POD_METRICS_LIST)
@@ -453,55 +462,56 @@ def _detect_short_fault_window_events(
                         }
                     )
 
-        # pod kill 的短窗特殊宽松策略：补 error/request/response 漏检
-        if str(fault_type).strip().lower() == "pod kill":
-            for svc, pods in pods_by_svc.items():
-                svc_df = kpi_df[kpi_df["pod"].astype(str).isin(pods)]
-                if svc_df.empty:
-                    continue
-                s_ts = _ts_series(svc_df)
-                svc_pre = svc_df.loc[s_ts < t_start, "value"]
-                svc_post = svc_df.loc[s_ts > t_end, "value"]
-                if svc_post.empty:
-                    continue
-                pre_med = float(svc_pre.median()) if not svc_pre.empty else 0.0
-                post_med = float(svc_post.median())
-                post_max = float(svc_post.max())
+        # 短窗宽松策略：仅当该服务已出现「服务级 request/response 断崖」时触发（数据特征，非 fault_type）
+        for svc, pods in pods_by_svc.items():
+            if not plunge_by_svc.get(svc, False):
+                continue
+            svc_df = kpi_df[kpi_df["pod"].astype(str).isin(pods)]
+            if svc_df.empty:
+                continue
+            s_ts = _ts_series(svc_df)
+            svc_pre = svc_df.loc[s_ts < t_start, "value"]
+            svc_post = svc_df.loc[s_ts > t_end, "value"]
+            if svc_post.empty:
+                continue
+            pre_med = float(svc_pre.median()) if not svc_pre.empty else 0.0
+            post_med = float(svc_post.median())
+            post_max = float(svc_post.max())
 
-                trigger = False
-                if metric in {"request", "response"}:
-                    trigger = (pre_med > 0.5 and post_med < 0.6 * pre_med) or (post_med < 1.0 and pre_med > 2.0)
-                elif metric in {"error_ratio", "client_error_ratio", "server_error_ratio"}:
-                    trigger = post_max > max(0.5, 1.05 * pre_med)
-                elif metric in {"error", "client_error", "server_error"}:
-                    trigger = post_max > max(0.0, pre_med)
+            trigger = False
+            if metric in {"request", "response"}:
+                trigger = (pre_med > 0.5 and post_med < 0.6 * pre_med) or (post_med < 1.0 and pre_med > 2.0)
+            elif metric in {"error_ratio", "client_error_ratio", "server_error_ratio"}:
+                trigger = post_max > max(0.5, 1.05 * pre_med)
+            elif metric in {"error", "client_error", "server_error"}:
+                trigger = post_max > max(0.0, pre_med)
 
-                if not trigger:
+            if not trigger:
+                continue
+            for pod in pods:
+                pod_df = svc_df[svc_df["pod"].astype(str) == pod]
+                if pod_df.empty:
                     continue
-                for pod in pods:
-                    pod_df = svc_df[svc_df["pod"].astype(str) == pod]
-                    if pod_df.empty:
-                        continue
-                    p_ts = _ts_series(pod_df)
-                    ts_list = pod_df.loc[p_ts > t_end, "time"].astype(str).tolist()
-                    if not ts_list:
-                        continue
-                    raw_events.append(
-                        {
-                            "pod": pod,
-                            "service": svc,
-                            "kpi": metric,
-                            "pattern": "short_fault_window_pod_kill_relaxed",
-                            "timestamps": ts_list,
-                        }
-                    )
+                p_ts = _ts_series(pod_df)
+                ts_list = pod_df.loc[p_ts > t_end, "time"].astype(str).tolist()
+                if not ts_list:
+                    continue
+                raw_events.append(
+                    {
+                        "pod": pod,
+                        "service": svc,
+                        "kpi": metric,
+                        "pattern": "short_fault_window_svc_plunge_relaxed",
+                        "timestamps": ts_list,
+                    }
+                )
 
         # ratio 有明显 spike 时，补 base metric（仅在 base 本身无数据或缺失时）
         if metric in SHORT_WINDOW_RATIO_TO_BASE:
             base_metric = SHORT_WINDOW_RATIO_TO_BASE[metric]
             has_base = not df[df["kpi_key"] == base_metric].empty
-            # pod kill 场景允许 ratio -> base 更激进映射
-            allow_even_if_has_base = str(fault_type).strip().lower() == "pod kill"
+            # 任一服务出现服务级流量断崖时，允许 ratio -> base 更激进映射
+            allow_even_if_has_base = any_svc_plunge
             if (not has_base) or allow_even_if_has_base:
                 ratio_events = [
                     e for e in raw_events
@@ -510,7 +520,7 @@ def _detect_short_fault_window_events(
                 ratio_events.extend(
                     [
                         e for e in raw_events
-                        if e.get("kpi") == metric and e.get("pattern") == "short_fault_window_pod_kill_relaxed"
+                        if e.get("kpi") == metric and e.get("pattern") == "short_fault_window_svc_plunge_relaxed"
                     ]
                 )
                 for ev in ratio_events:
@@ -527,20 +537,20 @@ def _detect_short_fault_window_events(
     return raw_events
 
 
-def _detect_tidb_component_trend_events(
-    df: pd.DataFrame,
-    root_cause_components: list,
-) -> list[dict]:
+def _detect_tidb_component_trend_events(df: pd.DataFrame) -> list[dict]:
     """
     TiDB 组件级趋势兜底:
     - 针对漏报最高的 store_size/memory_usage/qps/cpu_usage/grpc_qps/region_pending
     - 使用首尾分位段中位数差 + 整体变动范围，覆盖缓慢漂移
+    仅从数据中出现的 tidb-* pod 检测，不依赖 root_cause。
     """
     raw_events: list[dict] = []
-    if df.empty or not root_cause_components:
+    if df.empty:
         return raw_events
 
-    target_components = [str(c) for c in root_cause_components if str(c).startswith("tidb-")]
+    target_components = sorted(
+        {str(p) for p in df["pod"].dropna().astype(str).unique() if str(p).startswith("tidb-")}
+    )
     if not target_components:
         return raw_events
 
@@ -560,7 +570,7 @@ def _detect_tidb_component_trend_events(
         "failed_query_ops",
     }
     for comp in target_components:
-        comp_df = df[df["pod"].astype(str).str.startswith(comp)]
+        comp_df = df[df["pod"].astype(str) == comp]
         if comp_df.empty:
             continue
 
@@ -610,10 +620,9 @@ def _detect_context_shift_events(
     df_ctx: pd.DataFrame,
     fault_start: datetime,
     fault_end: datetime,
-    root_cause_components: list,
 ) -> list[dict]:
     raw_events: list[dict] = []
-    if df_ctx.empty or not root_cause_components:
+    if df_ctx.empty:
         return raw_events
     if not {"time", "pod", "kpi_key", "value"}.issubset(df_ctx.columns):
         return raw_events
@@ -632,8 +641,6 @@ def _detect_context_shift_events(
     if pre_df.empty or (fault_df.empty and post_df.empty):
         return raw_events
 
-    root_components = [str(c) for c in root_cause_components if c]
-    root_services = {_get_service_name(c) for c in root_components}
     candidate_metrics = {str(m) for m in df["kpi_key"].dropna().astype(str).unique()}
     candidate_metrics &= set(CONTEXT_METRIC_DIRECTIONS.keys())
 
@@ -665,12 +672,6 @@ def _detect_context_shift_events(
         for pod, pod_df in kdf.groupby("pod"):
             pod_name = str(pod)
             service = _get_service_name(pod_name)
-            matched = (
-                any(pod_name.startswith(rc) for rc in root_components)
-                or service in root_services
-            )
-            if not matched:
-                continue
 
             pre_vals = pod_df[pod_df["_ts"] < t_start]["value"].astype(float)
             fault_vals = pod_df[(pod_df["_ts"] >= t_start) & (pod_df["_ts"] <= t_end)]["value"].astype(float)
@@ -714,10 +715,9 @@ def _detect_root_service_aggregate_events(
     df_ctx: pd.DataFrame,
     fault_start: datetime,
     fault_end: datetime,
-    root_cause_components: list,
 ) -> list[dict]:
     raw_events: list[dict] = []
-    if df_ctx.empty or not root_cause_components:
+    if df_ctx.empty:
         return raw_events
 
     agg_metrics = {
@@ -738,11 +738,13 @@ def _detect_root_service_aggregate_events(
     t_start = pd.Timestamp(fault_start)
     t_end = pd.Timestamp(fault_end)
 
-    for comp in [str(c) for c in root_cause_components if c]:
-        svc = _get_service_name(comp)
+    known_services = sorted({_get_service_name(p) for p in PODS_LIST})
+    for svc in known_services:
         svc_df = df[df["pod"].astype(str).str.startswith(svc)]
         if svc_df.empty:
             continue
+        pods_here = svc_df["pod"].astype(str).unique()
+        rep_pod = sorted(pods_here)[0] if len(pods_here) else f"{svc}-0"
         for metric, direction in agg_metrics.items():
             mdf = svc_df[svc_df["kpi_key"] == metric]
             if mdf.empty:
@@ -764,7 +766,7 @@ def _detect_root_service_aggregate_events(
                 continue
             raw_events.append(
                 {
-                    "pod": comp,
+                    "pod": rep_pod,
                     "service": svc,
                     "kpi": metric,
                     "pattern": "root_service_aggregate_shift",
@@ -778,10 +780,9 @@ def _detect_tidb_root_component_events(
     df_ctx: pd.DataFrame,
     fault_start: datetime,
     fault_end: datetime,
-    root_cause_components: list,
 ) -> list[dict]:
     raw_events: list[dict] = []
-    if df_ctx.empty or not root_cause_components:
+    if df_ctx.empty:
         return raw_events
     ts = pd.to_datetime(df_ctx["time"], utc=True)
     if ts.dt.tz is not None:
@@ -799,8 +800,11 @@ def _detect_tidb_root_component_events(
     }
     state_metrics = {"region_health", "abnormal_region_count", "leader_count", "failed_query_ops"}
 
-    for comp in [str(c) for c in root_cause_components if str(c).startswith("tidb-")]:
-        cdf = df[df["pod"].astype(str).str.startswith(comp)]
+    tidb_pods = sorted(
+        {str(p) for p in df["pod"].dropna().astype(str).unique() if str(p).startswith("tidb-")}
+    )
+    for comp in tidb_pods:
+        cdf = df[df["pod"].astype(str) == comp]
         if cdf.empty:
             continue
         present = tidb_metrics & {str(m) for m in cdf["kpi_key"].dropna().astype(str).unique()}
@@ -1497,7 +1501,7 @@ def _detect_resource_stable_events(df: pd.DataFrame) -> list[dict]:
     return raw_events
 
 
-def run_tests(limit=None, uuid=None):
+def run_tests(limit=None, uuid=None, input_json: Path | None = None):
     sys.path.insert(0, str(PROJECT_ROOT))
     from unit_test.metric.baselines.baseline1.metric import MetricAgent
 
@@ -1505,7 +1509,7 @@ def run_tests(limit=None, uuid=None):
     if not dataset_root.exists():
         raise FileNotFoundError(f"dataset path not found: {dataset_root}")
 
-    test_cases = _load_test_cases()
+    test_cases = _load_test_cases(input_json)
     if uuid:
         test_cases = [case for case in test_cases if str(case.get("uuid", "")) == uuid]
         if not test_cases:
@@ -1515,9 +1519,10 @@ def run_tests(limit=None, uuid=None):
     if limit is not None:
         test_cases = test_cases[:limit]
 
-    # 粗覆盖用于统计；matched 覆盖用于补缺过滤
-    _ = _load_other_baseline_metric_hits(test_cases, exclude_method=5)
-    other_hits_matched = _load_other_baseline_matched_hits(test_cases, exclude_method=5)
+    run_uuids: Set[str] = {
+        str(c.get("uuid", "")).strip() for c in test_cases if str(c.get("uuid", "")).strip()
+    }
+    other_triplet_hits = _load_other_baseline_triplet_hits(run_uuids, exclude_method=5)
 
     uuid_order = {
         str(case.get("uuid", "")).strip(): idx
@@ -1566,19 +1571,16 @@ def run_tests(limit=None, uuid=None):
                 df_ctx,
                 start_time,
                 end_time,
-                case.get("root_cause_components") or [],
             )
             events_root_agg = _detect_root_service_aggregate_events(
                 df_ctx,
                 start_time,
                 end_time,
-                case.get("root_cause_components") or [],
             )
             events_tidb_root = _detect_tidb_root_component_events(
                 df_ctx,
                 start_time,
                 end_time,
-                case.get("root_cause_components") or [],
             )
         except Exception as exc:
             logger.warning("general context load failed for %s: %s", case_uuid, exc)
@@ -1595,18 +1597,13 @@ def run_tests(limit=None, uuid=None):
                     short_ctx,
                     start_time,
                     end_time,
-                    case.get("root_cause_components") or [],
-                    str(case.get("fault_type") or ""),
                 )
             except Exception as exc:
                 logger.warning("short-window context load failed for %s: %s", case_uuid, exc)
 
         # TiDB 组件趋势兜底（不依赖短窗）
         try:
-            events_tidb_component = _detect_tidb_component_trend_events(
-                df,
-                case.get("root_cause_components") or [],
-            )
+            events_tidb_component = _detect_tidb_component_trend_events(df)
         except Exception as exc:
             logger.warning("tidb component trend detection failed for %s: %s", case_uuid, exc)
 
@@ -1643,10 +1640,15 @@ def run_tests(limit=None, uuid=None):
 
     result_df = pd.DataFrame(records, columns=["uuid", "component", "metric"])
     if not result_df.empty:
-        # baseline5 只做补缺：去掉其他 baseline 已覆盖的 (uuid, metric)
+        # baseline5 只做补缺：去掉其他 baseline 已覆盖的 (uuid, component, metric)
         result_df = result_df[
             ~result_df.apply(
-                lambda r: (str(r["uuid"]), str(r["metric"])) in other_hits_matched,
+                lambda r: (
+                    str(r["uuid"]),
+                    str(r["component"]),
+                    str(r["metric"]),
+                )
+                in other_triplet_hits,
                 axis=1,
             )
         ].copy()
@@ -1672,8 +1674,15 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--limit", type=int, default=None, help="Number of test cases to run")
     parser.add_argument("--uuid", type=str, default=None, help="Run a specific test case by UUID")
+    parser.add_argument(
+        "--input-json",
+        type=str,
+        default=None,
+        help="Path to input.json (default: <repo>/dataset/input.json)",
+    )
     args = parser.parse_args()
 
-    run_tests(limit=args.limit, uuid=args.uuid)
+    input_path = Path(args.input_json).resolve() if args.input_json else None
+    run_tests(limit=args.limit, uuid=args.uuid, input_json=input_path)
 
 # python3 unit_test/metric/baselines/baseline5/run_baseline5.py --limit=5
