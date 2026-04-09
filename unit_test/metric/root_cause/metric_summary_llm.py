@@ -192,7 +192,11 @@ def _clean_llm_output(text: str) -> str:
     return "\n".join(lines).strip()
 
 
-def _build_client(api_key: str | None, api_url: str | None) -> Any:
+def _build_client(
+    api_key: str | None,
+    api_url: str | None,
+    provider: str = "yuzo",
+) -> Any:
     try:
         from openai import OpenAI
     except ImportError as exc:
@@ -200,18 +204,34 @@ def _build_client(api_key: str | None, api_url: str | None) -> Any:
             "Python package 'openai' is required for Yuzo API calls. Install with: pip install openai"
         ) from exc
 
-    key = (
-        api_key
-        or os.getenv("YUZO_API_KEY")
-        or os.getenv("DEEPSHIELDS_API_KEY")
-        or os.getenv("DEEPSEEK_API_KEY")
-        or os.getenv("OPENAI_API_KEY")
-    )
+    provider = str(provider or "yuzo").strip().lower()
+    if provider not in {"yuzo", "deepseek"}:
+        raise ValueError(f"unsupported provider: {provider} (expected: yuzo/deepseek)")
+
+    if provider == "deepseek":
+        key = api_key or os.getenv("DEEPSEEK_API_KEY") or os.getenv("OPENAI_API_KEY")
+        default_url = "https://api.deepseek.com/v1"
+    else:
+        key = (
+            api_key
+            or os.getenv("YUZO_API_KEY")
+            or os.getenv("DEEPSHIELDS_API_KEY")
+            or os.getenv("DEEPSEEK_API_KEY")
+            or os.getenv("OPENAI_API_KEY")
+        )
+        default_url = "https://api.deepshields.com/v1"
+
     if not key:
+        if provider == "deepseek":
+            raise ValueError("API key not found. Set DEEPSEEK_API_KEY (or OPENAI_API_KEY) or pass --api_key.")
         raise ValueError(
             "API key not found. Set YUZO_API_KEY/DEEPSHIELDS_API_KEY/DEEPSEEK_API_KEY/OPENAI_API_KEY or pass --api_key."
         )
-    url = api_url or os.getenv("YUZO_API_URL") or "https://api.deepshields.com/v1"
+
+    if provider == "deepseek":
+        url = api_url or os.getenv("DEEPSEEK_API_URL") or default_url
+    else:
+        url = api_url or os.getenv("YUZO_API_URL") or default_url
     return OpenAI(api_key=key, base_url=str(url).rstrip("/"))
 
 
@@ -657,6 +677,7 @@ def two_stage_metric_summary(
     model: str,
     api_key: str | None,
     api_url: str | None,
+    provider: str,
     top_n_per_category: int,
     payload_max_chars: int,
     first_k: int | None,
@@ -709,7 +730,7 @@ def two_stage_metric_summary(
     output_txt.parent.mkdir(parents=True, exist_ok=True)
     output_txt.write_text("", encoding="utf-8")
 
-    client = None if dry_run else _build_client(api_key=api_key, api_url=api_url)
+    client = None if dry_run else _build_client(api_key=api_key, api_url=api_url, provider=provider)
 
     all_uuids = case_uuids
     max_workers = max(1, int(max_workers))
@@ -787,6 +808,13 @@ def main() -> None:
         help="Output summary txt path (default: results/metric_summary.txt)",
     )
     parser.add_argument("--model", type=str, default="reasoner", help="Yuzo model name")
+    parser.add_argument(
+        "--provider",
+        type=str,
+        default="yuzo",
+        choices=["yuzo", "deepseek"],
+        help="LLM provider: yuzo or deepseek",
+    )
     parser.add_argument("--api_key", type=str, default=None, help="Yuzo API key (optional)")
     parser.add_argument("--api_url", type=str, default=None, help="Yuzo base URL (optional)")
     parser.add_argument(
@@ -827,6 +855,7 @@ def main() -> None:
         model=args.model,
         api_key=args.api_key,
         api_url=args.api_url,
+        provider=args.provider,
         top_n_per_category=max(1, int(args.top_n_per_category)),
         payload_max_chars=max(600, int(args.payload_max_chars)),
         first_k=args.first_k,

@@ -273,7 +273,7 @@ def run_tests(limit=None, uuid=None):
 
     output_dir = PROJECT_ROOT / "unit_test/metric/results"
     output_dir.mkdir(parents=True, exist_ok=True)
-    output_file = output_dir / "result_baseline_3.csv"
+    output_file = output_dir / "result_baseline3.csv"
     result_df.to_csv(output_file, index=False)
     logger.info("saved %d anomaly rows to %s", len(result_df), output_file)
 

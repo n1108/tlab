@@ -1,6 +1,6 @@
 # metric 异常检测 baseline-1 运行脚本 (IF+HBOS+IQR)
-# 输入：dataset 目录为 metric 原始数据，unit-test/metric/data/metric_dataset.json 读取故障 uuid 和持续时间段
-# 运行测试后，在 unit-test/metric/results 目录下生成结果文件 result_baseline_1.csv
+# 输入：dataset 目录为 metric 原始数据，unit_test/metric/data/metric_dataset.json 读取故障 uuid 和持续时间段
+# 运行测试后，在 unit_test/metric/results 目录下生成结果文件 result_baseline_1.csv
 # 结果文件为所有故障时间段（uuid）内检测到的所有指标异常（组件 + 指标）
 # 文件格式为 uuid, component, metric
 
@@ -14,14 +14,14 @@ import pandas as pd
 from tqdm import tqdm
 
 
-# 计算项目根目录：当前文件位于 unit-test/metric/baselines/baseline-1/
+# 计算项目根目录：当前文件位于 unit_test/metric/baselines/baseline-1/
 # 需要向上 4 级到达项目根目录 (/home/tyt21/tlab/)
 PROJECT_ROOT = Path(__file__).resolve().parents[4]
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
-# 添加 unit-test 目录到路径，以便导入 metric 模块
-UNIT_TEST_DIR = PROJECT_ROOT / "unit-test"
+# 添加 unit_test 目录到路径，以便导入 metric 模块
+UNIT_TEST_DIR = PROJECT_ROOT / "unit_test"
 if str(UNIT_TEST_DIR) not in sys.path:
     sys.path.insert(0, str(UNIT_TEST_DIR))
 
@@ -132,7 +132,7 @@ def run_tests(limit=None, uuid=None):
             .reset_index(drop=True)
         )
 
-    output_dir = PROJECT_ROOT / "unit-test/metric/results"
+    output_dir = PROJECT_ROOT / "unit_test/metric/results"
     output_dir.mkdir(parents=True, exist_ok=True)
     output_file = output_dir / "result_baseline1.csv"
     result_df.to_csv(output_file, index=False)
