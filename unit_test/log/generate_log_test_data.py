@@ -3,7 +3,6 @@
 仅包含在 key_observations 中至少有一条 type 为 "log" 的故障（与 metric 脚本类似，但过滤 log 相关项）。
 """
 import json
-import os
 import sys
 from pathlib import Path
 

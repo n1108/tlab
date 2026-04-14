@@ -1,0 +1,5596 @@
+[
+  {
+    "uuid": "74a44ae7-81",
+    "start_time": "2025-06-05T17:10:04Z",
+    "end_time": "2025-06-05T17:33:04Z",
+    "fault_type": "network corrupt",
+    "fault_category": "network attack",
+    "root_cause_components": [
+      "checkoutservice",
+      "shippingservice"
+    ],
+    "expected_log_patterns": [
+      [
+        "Error",
+        "while",
+        "dialing"
+      ],
+      [
+        "failure"
+      ],
+      [
+        "Rpc",
+        "error",
+        "code",
+        "canceled",
+        "desc",
+        "context canceled"
+      ],
+      [
+        "timeout"
+      ],
+      [
+        "unavailable"
+      ]
+    ]
+  },
+  {
+    "uuid": "38ee3d45-82",
+    "start_time": "2025-06-05T18:10:05Z",
+    "end_time": "2025-06-05T18:34:05Z",
+    "fault_type": "pod failure",
+    "fault_category": "pod fault",
+    "root_cause_components": [
+      "cartservice"
+    ],
+    "expected_log_patterns": [
+      [
+        "Connection",
+        "refused"
+      ],
+      [
+        "Error",
+        "while",
+        "dialing"
+      ],
+      [
+        "failure"
+      ],
+      [
+        "unavailable"
+      ]
+    ]
+  },
+  {
+    "uuid": "27956295-84",
+    "start_time": "2025-06-05T20:10:09Z",
+    "end_time": "2025-06-05T20:34:09Z",
+    "fault_type": "network corrupt",
+    "fault_category": "network attack",
+    "root_cause_components": [
+      "checkoutservice",
+      "paymentservice"
+    ],
+    "expected_log_patterns": [
+      [
+        "Error",
+        "while",
+        "dialing"
+      ],
+      [
+        "Rpc",
+        "error",
+        "code",
+        "canceled",
+        "desc",
+        "context canceled"
+      ],
+      [
+        "timeout"
+      ],
+      [
+        "unavailable"
+      ]
+    ]
+  },
+  {
+    "uuid": "5f904167-89",
+    "start_time": "2025-06-06T01:10:16Z",
+    "end_time": "2025-06-06T01:21:16Z",
+    "fault_type": "network loss",
+    "fault_category": "network attack",
+    "root_cause_components": [
+      "adservice",
+      "frontend"
+    ],
+    "expected_log_patterns": [
+      [
+        "deadlineexceeded"
+      ]
+    ]
+  },
+  {
+    "uuid": "d3bd27f3-90",
+    "start_time": "2025-06-06T02:02:59Z",
+    "end_time": "2025-06-06T02:15:59Z",
+    "fault_type": "network corrupt",
+    "fault_category": "network attack",
+    "root_cause_components": [
+      "checkoutservice",
+      "shippingservice"
+    ],
+    "expected_log_patterns": [
+      [
+        "Error",
+        "while",
+        "dialing"
+      ],
+      [
+        "failure"
+      ],
+      [
+        "Rpc",
+        "error",
+        "code",
+        "canceled",
+        "desc",
+        "context canceled"
+      ],
+      [
+        "timeout"
+      ],
+      [
+        "unavailable"
+      ]
+    ]
+  },
+  {
+    "uuid": "20622318-94",
+    "start_time": "2025-06-06T06:03:07Z",
+    "end_time": "2025-06-06T06:24:07Z",
+    "fault_type": "jvm cpu",
+    "fault_category": "jvm fault",
+    "root_cause_components": [
+      "adservice"
+    ],
+    "expected_log_patterns": [
+      [
+        "adservice--stress"
+      ],
+      [
+        "invocationtargetexception"
+      ],
+      [
+        "transformlistener"
+      ]
+    ]
+  },
+  {
+    "uuid": "6ef260df-97",
+    "start_time": "2025-06-06T09:03:13Z",
+    "end_time": "2025-06-06T09:15:13Z",
+    "fault_type": "jvm gc",
+    "fault_category": "jvm fault",
+    "root_cause_components": [
+      "adservice",
+      "adservice-1"
+    ],
+    "expected_log_patterns": [
+      [
+        "adservice--gc"
+      ],
+      [
+        "GCHelper"
+      ],
+      [
+        "invocationtargetexception"
+      ],
+      [
+        "transformlistener"
+      ]
+    ]
+  },
+  {
+    "uuid": "6375ea10-98",
+    "start_time": "2025-06-06T10:03:14Z",
+    "end_time": "2025-06-06T10:17:14Z",
+    "fault_type": "pod failure",
+    "fault_category": "pod fault",
+    "root_cause_components": [
+      "recommendationservice"
+    ],
+    "expected_log_patterns": [
+      [
+        "Connection",
+        "refused"
+      ],
+      [
+        "Error",
+        "while",
+        "dialing"
+      ],
+      [
+        "unavailable"
+      ]
+    ]
+  },
+  {
+    "uuid": "342d4820-100",
+    "start_time": "2025-06-06T12:03:18Z",
+    "end_time": "2025-06-06T12:26:18Z",
+    "fault_type": "network corrupt",
+    "fault_category": "network attack",
+    "root_cause_components": [
+      "checkoutservice",
+      "productcatalogservice"
+    ],
+    "expected_log_patterns": [
+      [
+        "Rpc",
+        "error",
+        "code",
+        "canceled",
+        "desc",
+        "context canceled"
+      ]
+    ]
+  },
+  {
+    "uuid": "ae4abdbe-103",
+    "start_time": "2025-06-06T15:03:29Z",
+    "end_time": "2025-06-06T15:28:29Z",
+    "fault_type": "memory stress",
+    "fault_category": "stress test",
+    "root_cause_components": [
+      "productcatalogservice",
+      "productcatalogservice-2"
+    ],
+    "expected_log_patterns": [
+      [
+        "Connection",
+        "refused"
+      ],
+      [
+        "Error",
+        "while",
+        "dialing"
+      ],
+      [
+        "unavailable"
+      ]
+    ]
+  },
+  {
+    "uuid": "744d4e2b-106",
+    "start_time": "2025-06-06T19:10:06Z",
+    "end_time": "2025-06-06T19:33:06Z",
+    "fault_type": "jvm cpu",
+    "fault_category": "jvm fault",
+    "root_cause_components": [
+      "adservice"
+    ],
+    "expected_log_patterns": [
+      [
+        "adservice--stress"
+      ],
+      [
+        "invocationtargetexception"
+      ],
+      [
+        "transformlistener"
+      ]
+    ]
+  },
+  {
+    "uuid": "55791019-109",
+    "start_time": "2025-06-06T23:10:21Z",
+    "end_time": "2025-06-06T23:34:21Z",
+    "fault_type": "network loss",
+    "fault_category": "network attack",
+    "root_cause_components": [
+      "cartservice",
+      "frontend"
+    ],
+    "expected_log_patterns": [
+      [
+        "Error",
+        "while",
+        "dialing"
+      ],
+      [
+        "Rpc",
+        "error",
+        "code",
+        "canceled",
+        "desc",
+        "context canceled"
+      ],
+      [
+        "timeout"
+      ],
+      [
+        "unavailable"
+      ]
+    ]
+  },
+  {
+    "uuid": "abb62970-110",
+    "start_time": "2025-06-07T00:10:23Z",
+    "end_time": "2025-06-07T00:29:23Z",
+    "fault_type": "jvm cpu",
+    "fault_category": "jvm fault",
+    "root_cause_components": [
+      "adservice"
+    ],
+    "expected_log_patterns": [
+      [
+        "adservice--stress"
+      ],
+      [
+        "invocationtargetexception"
+      ],
+      [
+        "transformlistener"
+      ]
+    ]
+  },
+  {
+    "uuid": "f48a6b60-112",
+    "start_time": "2025-06-07T02:10:26Z",
+    "end_time": "2025-06-07T02:27:26Z",
+    "fault_type": "pod failure",
+    "fault_category": "pod fault",
+    "root_cause_components": [
+      "recommendationservice"
+    ],
+    "expected_log_patterns": [
+      [
+        "Connection",
+        "refused"
+      ],
+      [
+        "Error",
+        "while",
+        "dialing"
+      ],
+      [
+        "unavailable"
+      ]
+    ]
+  },
+  {
+    "uuid": "dc62e30c-113",
+    "start_time": "2025-06-07T03:10:28Z",
+    "end_time": "2025-06-07T03:20:28Z",
+    "fault_type": "network corrupt",
+    "fault_category": "network attack",
+    "root_cause_components": [
+      "cartservice",
+      "redis-cart",
+      "redis-cart-0"
+    ],
+    "expected_log_patterns": [
+      [
+        "failure"
+      ],
+      [
+        "timeout"
+      ]
+    ]
+  },
+  {
+    "uuid": "541f72de-115",
+    "start_time": "2025-06-07T05:10:31Z",
+    "end_time": "2025-06-07T05:27:31Z",
+    "fault_type": "network corrupt",
+    "fault_category": "network attack",
+    "root_cause_components": [
+      "frontend",
+      "productcatalogservice"
+    ],
+    "expected_log_patterns": [
+      [
+        "Rpc",
+        "error",
+        "code",
+        "canceled",
+        "desc",
+        "context canceled"
+      ],
+      [
+        "unavailable"
+      ]
+    ]
+  },
+  {
+    "uuid": "e2750b43-116",
+    "start_time": "2025-06-07T06:10:33Z",
+    "end_time": "2025-06-07T06:35:33Z",
+    "fault_type": "network corrupt",
+    "fault_category": "network attack",
+    "root_cause_components": [
+      "checkoutservice",
+      "paymentservice"
+    ],
+    "expected_log_patterns": [
+      [
+        "Error",
+        "while",
+        "dialing"
+      ],
+      [
+        "Rpc",
+        "error",
+        "code",
+        "canceled",
+        "desc",
+        "context canceled"
+      ],
+      [
+        "timeout"
+      ],
+      [
+        "unavailable"
+      ]
+    ]
+  },
+  {
+    "uuid": "a363d826-117",
+    "start_time": "2025-06-07T07:10:35Z",
+    "end_time": "2025-06-07T07:32:35Z",
+    "fault_type": "network loss",
+    "fault_category": "network attack",
+    "root_cause_components": [
+      "cartservice",
+      "frontend"
+    ],
+    "expected_log_patterns": [
+      [
+        "Error",
+        "while",
+        "dialing"
+      ],
+      [
+        "Rpc",
+        "error",
+        "code",
+        "canceled",
+        "desc",
+        "context canceled"
+      ],
+      [
+        "timeout"
+      ],
+      [
+        "unavailable"
+      ]
+    ]
+  },
+  {
+    "uuid": "ad84546c-124",
+    "start_time": "2025-06-07T14:11:03Z",
+    "end_time": "2025-06-07T14:34:03Z",
+    "fault_type": "network loss",
+    "fault_category": "network attack",
+    "root_cause_components": [
+      "checkoutservice",
+      "shippingservice"
+    ],
+    "expected_log_patterns": [
+      [
+        "Error",
+        "while",
+        "dialing"
+      ],
+      [
+        "failure"
+      ],
+      [
+        "Rpc",
+        "error",
+        "code",
+        "canceled",
+        "desc",
+        "context canceled"
+      ],
+      [
+        "timeout"
+      ],
+      [
+        "unavailable"
+      ]
+    ]
+  },
+  {
+    "uuid": "de4a919c-126",
+    "start_time": "2025-06-07T16:10:02Z",
+    "end_time": "2025-06-07T16:32:02Z",
+    "fault_type": "memory stress",
+    "fault_category": "stress test",
+    "root_cause_components": [
+      "paymentservice"
+    ],
+    "expected_log_patterns": [
+      [
+        "could",
+        "not",
+        "load"
+      ]
+    ]
+  },
+  {
+    "uuid": "8d818070-127",
+    "start_time": "2025-06-07T17:10:04Z",
+    "end_time": "2025-06-07T17:22:04Z",
+    "fault_type": "network loss",
+    "fault_category": "network attack",
+    "root_cause_components": [
+      "adservice",
+      "frontend"
+    ],
+    "expected_log_patterns": [
+      [
+        "deadlineexceeded"
+      ]
+    ]
+  },
+  {
+    "uuid": "c1e7d172-128",
+    "start_time": "2025-06-07T18:10:06Z",
+    "end_time": "2025-06-07T18:23:06Z",
+    "fault_type": "network loss",
+    "fault_category": "network attack",
+    "root_cause_components": [
+      "checkoutservice",
+      "frontend"
+    ],
+    "expected_log_patterns": [
+      [
+        "Rpc",
+        "error",
+        "code",
+        "canceled",
+        "desc",
+        "context canceled"
+      ]
+    ]
+  },
+  {
+    "uuid": "343ba04c-129",
+    "start_time": "2025-06-07T19:10:08Z",
+    "end_time": "2025-06-07T19:24:08Z",
+    "fault_type": "jvm exception",
+    "fault_category": "jvm fault",
+    "root_cause_components": [
+      "adservice"
+    ],
+    "expected_log_patterns": [
+      [
+        "adservice-getrandomads-exception"
+      ],
+      [
+        "Caught",
+        "throwexception"
+      ],
+      [
+        "grpc-default-executor"
+      ],
+      [
+        "injected",
+        "error"
+      ],
+      [
+        "invocationtargetexception"
+      ],
+      [
+        "transformlistener"
+      ]
+    ]
+  },
+  {
+    "uuid": "36937f85-134",
+    "start_time": "2025-06-08T00:10:15Z",
+    "end_time": "2025-06-08T00:26:15Z",
+    "fault_type": "jvm latency",
+    "fault_category": "jvm fault",
+    "root_cause_components": [
+      "adservice",
+      "adservice-1"
+    ],
+    "expected_log_patterns": [
+      [
+        "adservice-getRandomAds-latency"
+      ],
+      [
+        "invocationtargetexception"
+      ],
+      [
+        "transformlistener"
+      ]
+    ]
+  },
+  {
+    "uuid": "3400061d-135",
+    "start_time": "2025-06-08T01:10:17Z",
+    "end_time": "2025-06-08T01:31:17Z",
+    "fault_type": "pod failure",
+    "fault_category": "pod fault",
+    "root_cause_components": [
+      "recommendationservice"
+    ],
+    "expected_log_patterns": [
+      [
+        "Connection",
+        "refused"
+      ],
+      [
+        "Error",
+        "while",
+        "dialing"
+      ],
+      [
+        "unavailable"
+      ]
+    ]
+  },
+  {
+    "uuid": "2272a5ff-138",
+    "start_time": "2025-06-08T04:10:22Z",
+    "end_time": "2025-06-08T04:23:22Z",
+    "fault_type": "jvm exception",
+    "fault_category": "jvm fault",
+    "root_cause_components": [
+      "adservice"
+    ],
+    "expected_log_patterns": [
+      [
+        "adservice-getrandomads-exception"
+      ],
+      [
+        "Caught",
+        "throwexception"
+      ],
+      [
+        "grpc-default-executor"
+      ],
+      [
+        "injected",
+        "error"
+      ],
+      [
+        "invocationtargetexception"
+      ],
+      [
+        "transformlistener"
+      ]
+    ]
+  },
+  {
+    "uuid": "cc3b1830-139",
+    "start_time": "2025-06-08T05:10:24Z",
+    "end_time": "2025-06-08T05:25:24Z",
+    "fault_type": "jvm gc",
+    "fault_category": "jvm fault",
+    "root_cause_components": [
+      "adservice",
+      "adservice-2"
+    ],
+    "expected_log_patterns": [
+      [
+        "adservice--gc"
+      ],
+      [
+        "GCHelper"
+      ],
+      [
+        "invocationtargetexception"
+      ],
+      [
+        "transformlistener"
+      ]
+    ]
+  },
+  {
+    "uuid": "fe25ee9b-143",
+    "start_time": "2025-06-08T09:10:31Z",
+    "end_time": "2025-06-08T09:32:31Z",
+    "fault_type": "network corrupt",
+    "fault_category": "network attack",
+    "root_cause_components": [
+      "frontend",
+      "recommendationservice"
+    ],
+    "expected_log_patterns": [
+      [
+        "Rpc",
+        "error",
+        "code",
+        "canceled",
+        "desc",
+        "context canceled"
+      ]
+    ]
+  },
+  {
+    "uuid": "dce5cefa-147",
+    "start_time": "2025-06-08T13:10:54Z",
+    "end_time": "2025-06-08T13:30:54Z",
+    "fault_type": "pod failure",
+    "fault_category": "pod fault",
+    "root_cause_components": [
+      "cartservice"
+    ],
+    "expected_log_patterns": [
+      [
+        "Connection",
+        "refused"
+      ],
+      [
+        "Error",
+        "while",
+        "dialing"
+      ],
+      [
+        "failure"
+      ],
+      [
+        "unavailable"
+      ]
+    ]
+  },
+  {
+    "uuid": "50f000ee-148",
+    "start_time": "2025-06-08T14:10:55Z",
+    "end_time": "2025-06-08T14:29:55Z",
+    "fault_type": "memory stress",
+    "fault_category": "stress test",
+    "root_cause_components": [
+      "paymentservice",
+      "paymentservice-0"
+    ],
+    "expected_log_patterns": [
+      [
+        "could",
+        "not",
+        "load"
+      ]
+    ]
+  },
+  {
+    "uuid": "9a257bd5-150",
+    "start_time": "2025-06-08T16:10:02Z",
+    "end_time": "2025-06-08T16:25:02Z",
+    "fault_type": "jvm latency",
+    "fault_category": "jvm fault",
+    "root_cause_components": [
+      "adservice"
+    ],
+    "expected_log_patterns": [
+      [
+        "adservice-getRandomAds-latency"
+      ],
+      [
+        "deadlineexceeded"
+      ],
+      [
+        "invocationtargetexception"
+      ],
+      [
+        "transformlistener"
+      ]
+    ]
+  },
+  {
+    "uuid": "eba76009-152",
+    "start_time": "2025-06-08T18:10:05Z",
+    "end_time": "2025-06-08T18:29:05Z",
+    "fault_type": "jvm exception",
+    "fault_category": "jvm fault",
+    "root_cause_components": [
+      "adservice",
+      "adservice-0"
+    ],
+    "expected_log_patterns": [
+      [
+        "adservice-getrandomads-exception"
+      ],
+      [
+        "Caught",
+        "throwexception"
+      ],
+      [
+        "grpc-default-executor"
+      ],
+      [
+        "injected",
+        "error"
+      ],
+      [
+        "invocationtargetexception"
+      ],
+      [
+        "transformlistener"
+      ]
+    ]
+  },
+  {
+    "uuid": "168cdf19-153",
+    "start_time": "2025-06-08T19:10:07Z",
+    "end_time": "2025-06-08T19:31:07Z",
+    "fault_type": "jvm gc",
+    "fault_category": "jvm fault",
+    "root_cause_components": [
+      "adservice"
+    ],
+    "expected_log_patterns": [
+      [
+        "adservice--gc"
+      ],
+      [
+        "deadlineexceeded"
+      ],
+      [
+        "GCHelper"
+      ],
+      [
+        "invocationtargetexception"
+      ],
+      [
+        "transformlistener"
+      ]
+    ]
+  },
+  {
+    "uuid": "05b57997-154",
+    "start_time": "2025-06-08T20:10:18Z",
+    "end_time": "2025-06-08T20:29:18Z",
+    "fault_type": "network corrupt",
+    "fault_category": "network attack",
+    "root_cause_components": [
+      "cartservice",
+      "checkoutservice"
+    ],
+    "expected_log_patterns": [
+      [
+        "Error",
+        "while",
+        "dialing"
+      ],
+      [
+        "failure"
+      ],
+      [
+        "Rpc",
+        "error",
+        "code",
+        "canceled",
+        "desc",
+        "context canceled"
+      ],
+      [
+        "timeout"
+      ],
+      [
+        "unavailable"
+      ]
+    ]
+  },
+  {
+    "uuid": "3600f326-158",
+    "start_time": "2025-06-09T00:10:25Z",
+    "end_time": "2025-06-09T00:34:25Z",
+    "fault_type": "jvm gc",
+    "fault_category": "jvm fault",
+    "root_cause_components": [
+      "adservice",
+      "adservice-0"
+    ],
+    "expected_log_patterns": [
+      [
+        "adservice--gc"
+      ],
+      [
+        "deadlineexceeded"
+      ],
+      [
+        "GCHelper"
+      ],
+      [
+        "invocationtargetexception"
+      ],
+      [
+        "transformlistener"
+      ]
+    ]
+  },
+  {
+    "uuid": "cb5815ce-161",
+    "start_time": "2025-06-09T03:10:31Z",
+    "end_time": "2025-06-09T03:29:31Z",
+    "fault_type": "jvm cpu",
+    "fault_category": "jvm fault",
+    "root_cause_components": [
+      "adservice"
+    ],
+    "expected_log_patterns": [
+      [
+        "adservice--stress"
+      ],
+      [
+        "invocationtargetexception"
+      ],
+      [
+        "transformlistener"
+      ]
+    ]
+  },
+  {
+    "uuid": "43e1b3bf-163",
+    "start_time": "2025-06-09T05:10:35Z",
+    "end_time": "2025-06-09T05:22:35Z",
+    "fault_type": "network loss",
+    "fault_category": "network attack",
+    "root_cause_components": [
+      "checkoutservice",
+      "paymentservice"
+    ],
+    "expected_log_patterns": [
+      [
+        "Error",
+        "while",
+        "dialing"
+      ],
+      [
+        "Rpc",
+        "error",
+        "code",
+        "canceled",
+        "desc",
+        "context canceled"
+      ],
+      [
+        "timeout"
+      ],
+      [
+        "unavailable"
+      ]
+    ]
+  },
+  {
+    "uuid": "7bdc4b83-164",
+    "start_time": "2025-06-09T06:10:36Z",
+    "end_time": "2025-06-09T06:22:36Z",
+    "fault_type": "jvm latency",
+    "fault_category": "jvm fault",
+    "root_cause_components": [
+      "adservice"
+    ],
+    "expected_log_patterns": [
+      [
+        "adservice-getRandomAds-latency"
+      ],
+      [
+        "deadlineexceeded"
+      ],
+      [
+        "invocationtargetexception"
+      ],
+      [
+        "transformlistener"
+      ]
+    ]
+  },
+  {
+    "uuid": "578fce7c-166",
+    "start_time": "2025-06-09T08:10:40Z",
+    "end_time": "2025-06-09T08:34:40Z",
+    "fault_type": "jvm gc",
+    "fault_category": "jvm fault",
+    "root_cause_components": [
+      "adservice",
+      "adservice-2"
+    ],
+    "expected_log_patterns": [
+      [
+        "adservice--gc"
+      ],
+      [
+        "GCHelper"
+      ],
+      [
+        "invocationtargetexception"
+      ],
+      [
+        "transformlistener"
+      ]
+    ]
+  },
+  {
+    "uuid": "47fe21f6-167",
+    "start_time": "2025-06-09T09:10:42Z",
+    "end_time": "2025-06-09T09:25:42Z",
+    "fault_type": "jvm exception",
+    "fault_category": "jvm fault",
+    "root_cause_components": [
+      "adservice"
+    ],
+    "expected_log_patterns": [
+      [
+        "adservice-getrandomads-exception"
+      ],
+      [
+        "Caught",
+        "throwexception"
+      ],
+      [
+        "grpc-default-executor"
+      ],
+      [
+        "injected",
+        "error"
+      ],
+      [
+        "invocationtargetexception"
+      ],
+      [
+        "transformlistener"
+      ]
+    ]
+  },
+  {
+    "uuid": "df892932-168",
+    "start_time": "2025-06-09T10:10:44Z",
+    "end_time": "2025-06-09T10:23:44Z",
+    "fault_type": "jvm cpu",
+    "fault_category": "jvm fault",
+    "root_cause_components": [
+      "adservice"
+    ],
+    "expected_log_patterns": [
+      [
+        "adservice--stress"
+      ],
+      [
+        "invocationtargetexception"
+      ],
+      [
+        "transformlistener"
+      ]
+    ]
+  },
+  {
+    "uuid": "49a506cd-176",
+    "start_time": "2025-06-09T18:10:04Z",
+    "end_time": "2025-06-09T18:26:04Z",
+    "fault_type": "network loss",
+    "fault_category": "network attack",
+    "root_cause_components": [
+      "cartservice",
+      "redis-cart",
+      "redis-cart-0"
+    ],
+    "expected_log_patterns": [
+      [
+        "failure"
+      ],
+      [
+        "timeout"
+      ]
+    ]
+  },
+  {
+    "uuid": "6892c835-177",
+    "start_time": "2025-06-09T20:10:20Z",
+    "end_time": "2025-06-09T20:35:20Z",
+    "fault_type": "jvm gc",
+    "fault_category": "jvm fault",
+    "root_cause_components": [
+      "adservice"
+    ],
+    "expected_log_patterns": [
+      [
+        "adservice--gc"
+      ],
+      [
+        "deadlineexceeded"
+      ],
+      [
+        "GCHelper"
+      ],
+      [
+        "invocationtargetexception"
+      ],
+      [
+        "transformlistener"
+      ]
+    ]
+  },
+  {
+    "uuid": "d0be3c58-178",
+    "start_time": "2025-06-09T21:10:22Z",
+    "end_time": "2025-06-09T21:28:22Z",
+    "fault_type": "jvm cpu",
+    "fault_category": "jvm fault",
+    "root_cause_components": [
+      "adservice"
+    ],
+    "expected_log_patterns": [
+      [
+        "adservice--stress"
+      ],
+      [
+        "invocationtargetexception"
+      ],
+      [
+        "transformlistener"
+      ]
+    ]
+  },
+  {
+    "uuid": "7f595b45-181",
+    "start_time": "2025-06-10T00:10:28Z",
+    "end_time": "2025-06-10T00:35:28Z",
+    "fault_type": "network corrupt",
+    "fault_category": "network attack",
+    "root_cause_components": [
+      "productcatalogservice",
+      "recommendationservice"
+    ],
+    "expected_log_patterns": [
+      [
+        "Rpc",
+        "error",
+        "code",
+        "canceled",
+        "desc",
+        "context canceled"
+      ],
+      [
+        "timeout"
+      ],
+      [
+        "unavailable"
+      ]
+    ]
+  },
+  {
+    "uuid": "fb327034-184",
+    "start_time": "2025-06-10T03:10:34Z",
+    "end_time": "2025-06-10T03:33:34Z",
+    "fault_type": "jvm exception",
+    "fault_category": "jvm fault",
+    "root_cause_components": [
+      "adservice",
+      "adservice-1"
+    ],
+    "expected_log_patterns": [
+      [
+        "adservice-getrandomads-exception"
+      ],
+      [
+        "invocationtargetexception"
+      ],
+      [
+        "transformlistener"
+      ]
+    ]
+  },
+  {
+    "uuid": "97d37c35-186",
+    "start_time": "2025-06-10T05:10:38Z",
+    "end_time": "2025-06-10T05:23:38Z",
+    "fault_type": "jvm exception",
+    "fault_category": "jvm fault",
+    "root_cause_components": [
+      "adservice"
+    ],
+    "expected_log_patterns": [
+      [
+        "adservice-getrandomads-exception"
+      ],
+      [
+        "Caught",
+        "throwexception"
+      ],
+      [
+        "grpc-default-executor"
+      ],
+      [
+        "injected",
+        "error"
+      ],
+      [
+        "invocationtargetexception"
+      ],
+      [
+        "transformlistener"
+      ]
+    ]
+  },
+  {
+    "uuid": "9b0d8a50-187",
+    "start_time": "2025-06-10T06:10:40Z",
+    "end_time": "2025-06-10T06:31:40Z",
+    "fault_type": "jvm exception",
+    "fault_category": "jvm fault",
+    "root_cause_components": [
+      "adservice"
+    ],
+    "expected_log_patterns": [
+      [
+        "adservice-getrandomads-exception"
+      ],
+      [
+        "Caught",
+        "throwexception"
+      ],
+      [
+        "grpc-default-executor"
+      ],
+      [
+        "injected",
+        "error"
+      ],
+      [
+        "invocationtargetexception"
+      ],
+      [
+        "transformlistener"
+      ]
+    ]
+  },
+  {
+    "uuid": "7513dbaf-190",
+    "start_time": "2025-06-10T09:10:48Z",
+    "end_time": "2025-06-10T09:27:48Z",
+    "fault_type": "jvm latency",
+    "fault_category": "jvm fault",
+    "root_cause_components": [
+      "adservice"
+    ],
+    "expected_log_patterns": [
+      [
+        "adservice-getRandomAds-latency"
+      ],
+      [
+        "deadlineexceeded"
+      ],
+      [
+        "invocationtargetexception"
+      ],
+      [
+        "transformlistener"
+      ]
+    ]
+  },
+  {
+    "uuid": "c9832b3e-191",
+    "start_time": "2025-06-10T10:10:50Z",
+    "end_time": "2025-06-10T10:22:50Z",
+    "fault_type": "pod failure",
+    "fault_category": "pod fault",
+    "root_cause_components": [
+      "checkoutservice"
+    ],
+    "expected_log_patterns": [
+      [
+        "Connection",
+        "refused"
+      ],
+      [
+        "Error",
+        "while",
+        "dialing"
+      ],
+      [
+        "unavailable"
+      ]
+    ]
+  },
+  {
+    "uuid": "e55fb1cb-192",
+    "start_time": "2025-06-10T11:10:52Z",
+    "end_time": "2025-06-10T11:28:52Z",
+    "fault_type": "jvm gc",
+    "fault_category": "jvm fault",
+    "root_cause_components": [
+      "adservice"
+    ],
+    "expected_log_patterns": [
+      [
+        "adservice--gc"
+      ],
+      [
+        "deadlineexceeded"
+      ],
+      [
+        "GCHelper"
+      ],
+      [
+        "invocationtargetexception"
+      ],
+      [
+        "transformlistener"
+      ]
+    ]
+  },
+  {
+    "uuid": "e4ef8a12-193",
+    "start_time": "2025-06-10T12:10:54Z",
+    "end_time": "2025-06-10T12:27:54Z",
+    "fault_type": "network corrupt",
+    "fault_category": "network attack",
+    "root_cause_components": [
+      "frontend",
+      "recommendationservice"
+    ],
+    "expected_log_patterns": [
+      [
+        "Error",
+        "while",
+        "dialing"
+      ],
+      [
+        "Rpc",
+        "error",
+        "code",
+        "canceled",
+        "desc",
+        "context canceled"
+      ],
+      [
+        "timeout"
+      ],
+      [
+        "unavailable"
+      ]
+    ]
+  },
+  {
+    "uuid": "7984364a-195",
+    "start_time": "2025-06-10T14:10:58Z",
+    "end_time": "2025-06-10T14:28:58Z",
+    "fault_type": "jvm latency",
+    "fault_category": "jvm fault",
+    "root_cause_components": [
+      "adservice",
+      "adservice-0"
+    ],
+    "expected_log_patterns": [
+      [
+        "adservice-getRandomAds-latency"
+      ],
+      [
+        "deadlineexceeded"
+      ],
+      [
+        "invocationtargetexception"
+      ],
+      [
+        "transformlistener"
+      ]
+    ]
+  },
+  {
+    "uuid": "6a643823-196",
+    "start_time": "2025-06-10T15:11:01Z",
+    "end_time": "2025-06-10T15:21:01Z",
+    "fault_type": "jvm latency",
+    "fault_category": "jvm fault",
+    "root_cause_components": [
+      "adservice",
+      "adservice-2"
+    ],
+    "expected_log_patterns": [
+      [
+        "adservice-getRandomAds-latency"
+      ],
+      [
+        "invocationtargetexception"
+      ],
+      [
+        "transformlistener"
+      ]
+    ]
+  },
+  {
+    "uuid": "de1d442d-197",
+    "start_time": "2025-06-10T16:10:01Z",
+    "end_time": "2025-06-10T16:30:01Z",
+    "fault_type": "network loss",
+    "fault_category": "network attack",
+    "root_cause_components": [
+      "checkoutservice",
+      "frontend"
+    ],
+    "expected_log_patterns": [
+      [
+        "Error",
+        "while",
+        "dialing"
+      ],
+      [
+        "Rpc",
+        "error",
+        "code",
+        "canceled",
+        "desc",
+        "context canceled"
+      ],
+      [
+        "timeout"
+      ],
+      [
+        "unavailable"
+      ]
+    ]
+  },
+  {
+    "uuid": "4229b9c5-198",
+    "start_time": "2025-06-10T17:10:06Z",
+    "end_time": "2025-06-10T17:28:06Z",
+    "fault_type": "jvm latency",
+    "fault_category": "jvm fault",
+    "root_cause_components": [
+      "adservice",
+      "adservice-0"
+    ],
+    "expected_log_patterns": [
+      [
+        "adservice-getRandomAds-latency"
+      ],
+      [
+        "invocationtargetexception"
+      ],
+      [
+        "transformlistener"
+      ]
+    ]
+  },
+  {
+    "uuid": "ff15d32c-199",
+    "start_time": "2025-06-10T18:10:08Z",
+    "end_time": "2025-06-10T18:23:08Z",
+    "fault_type": "jvm gc",
+    "fault_category": "jvm fault",
+    "root_cause_components": [
+      "adservice"
+    ],
+    "expected_log_patterns": [
+      [
+        "adservice--gc"
+      ],
+      [
+        "deadlineexceeded"
+      ],
+      [
+        "GCHelper"
+      ],
+      [
+        "invocationtargetexception"
+      ],
+      [
+        "transformlistener"
+      ]
+    ]
+  },
+  {
+    "uuid": "56c934bb-205",
+    "start_time": "2025-06-11T00:10:20Z",
+    "end_time": "2025-06-11T00:28:20Z",
+    "fault_type": "pod failure",
+    "fault_category": "pod fault",
+    "root_cause_components": [
+      "cartservice"
+    ],
+    "expected_log_patterns": [
+      [
+        "Connection",
+        "refused"
+      ],
+      [
+        "Error",
+        "while",
+        "dialing"
+      ],
+      [
+        "failure"
+      ],
+      [
+        "unavailable"
+      ]
+    ]
+  },
+  {
+    "uuid": "d9fb014e-206",
+    "start_time": "2025-06-11T01:10:22Z",
+    "end_time": "2025-06-11T01:29:22Z",
+    "fault_type": "jvm latency",
+    "fault_category": "jvm fault",
+    "root_cause_components": [
+      "adservice"
+    ],
+    "expected_log_patterns": [
+      [
+        "adservice-getRandomAds-latency"
+      ],
+      [
+        "deadlineexceeded"
+      ],
+      [
+        "invocationtargetexception"
+      ],
+      [
+        "transformlistener"
+      ]
+    ]
+  },
+  {
+    "uuid": "92e5a649-207",
+    "start_time": "2025-06-11T02:10:29Z",
+    "end_time": "2025-06-11T02:33:29Z",
+    "fault_type": "network corrupt",
+    "fault_category": "network attack",
+    "root_cause_components": [
+      "checkoutservice",
+      "paymentservice"
+    ],
+    "expected_log_patterns": [
+      [
+        "Error",
+        "while",
+        "dialing"
+      ],
+      [
+        "Rpc",
+        "error",
+        "code",
+        "canceled",
+        "desc",
+        "context canceled"
+      ],
+      [
+        "timeout"
+      ],
+      [
+        "unavailable"
+      ]
+    ]
+  },
+  {
+    "uuid": "74bd0298-209",
+    "start_time": "2025-06-11T04:10:33Z",
+    "end_time": "2025-06-11T04:28:33Z",
+    "fault_type": "jvm latency",
+    "fault_category": "jvm fault",
+    "root_cause_components": [
+      "adservice",
+      "adservice-0"
+    ],
+    "expected_log_patterns": [
+      [
+        "adservice-getRandomAds-latency"
+      ],
+      [
+        "deadlineexceeded"
+      ],
+      [
+        "invocationtargetexception"
+      ],
+      [
+        "transformlistener"
+      ]
+    ]
+  },
+  {
+    "uuid": "6a9a1c00-210",
+    "start_time": "2025-06-11T05:10:35Z",
+    "end_time": "2025-06-11T05:21:35Z",
+    "fault_type": "jvm latency",
+    "fault_category": "jvm fault",
+    "root_cause_components": [
+      "adservice"
+    ],
+    "expected_log_patterns": [
+      [
+        "adservice-getRandomAds-latency"
+      ],
+      [
+        "deadlineexceeded"
+      ],
+      [
+        "invocationtargetexception"
+      ],
+      [
+        "transformlistener"
+      ]
+    ]
+  },
+  {
+    "uuid": "499d8ec0-211",
+    "start_time": "2025-06-11T06:10:37Z",
+    "end_time": "2025-06-11T06:30:37Z",
+    "fault_type": "jvm gc",
+    "fault_category": "jvm fault",
+    "root_cause_components": [
+      "adservice"
+    ],
+    "expected_log_patterns": [
+      [
+        "adservice--gc"
+      ],
+      [
+        "deadlineexceeded"
+      ],
+      [
+        "GCHelper"
+      ],
+      [
+        "invocationtargetexception"
+      ],
+      [
+        "transformlistener"
+      ]
+    ]
+  },
+  {
+    "uuid": "5a573d9d-212",
+    "start_time": "2025-06-11T07:10:39Z",
+    "end_time": "2025-06-11T07:30:39Z",
+    "fault_type": "network corrupt",
+    "fault_category": "network attack",
+    "root_cause_components": [
+      "cartservice",
+      "checkoutservice"
+    ],
+    "expected_log_patterns": [
+      [
+        "Error",
+        "while",
+        "dialing"
+      ],
+      [
+        "failure"
+      ],
+      [
+        "Rpc",
+        "error",
+        "code",
+        "canceled",
+        "desc",
+        "context canceled"
+      ],
+      [
+        "timeout"
+      ],
+      [
+        "unavailable"
+      ]
+    ]
+  },
+  {
+    "uuid": "2cce5582-215",
+    "start_time": "2025-06-11T10:10:44Z",
+    "end_time": "2025-06-11T10:31:44Z",
+    "fault_type": "jvm cpu",
+    "fault_category": "jvm fault",
+    "root_cause_components": [
+      "adservice"
+    ],
+    "expected_log_patterns": [
+      [
+        "adservice--stress"
+      ],
+      [
+        "invocationtargetexception"
+      ],
+      [
+        "transformlistener"
+      ]
+    ]
+  },
+  {
+    "uuid": "13ebf32d-216",
+    "start_time": "2025-06-11T11:10:46Z",
+    "end_time": "2025-06-11T11:23:46Z",
+    "fault_type": "jvm cpu",
+    "fault_category": "jvm fault",
+    "root_cause_components": [
+      "adservice"
+    ],
+    "expected_log_patterns": [
+      [
+        "adservice--stress"
+      ],
+      [
+        "invocationtargetexception"
+      ],
+      [
+        "transformlistener"
+      ]
+    ]
+  },
+  {
+    "uuid": "3ae307d9-218",
+    "start_time": "2025-06-11T13:10:50Z",
+    "end_time": "2025-06-11T13:30:50Z",
+    "fault_type": "jvm exception",
+    "fault_category": "jvm fault",
+    "root_cause_components": [
+      "adservice"
+    ],
+    "expected_log_patterns": [
+      [
+        "adservice-getrandomads-exception"
+      ],
+      [
+        "Caught",
+        "throwexception"
+      ],
+      [
+        "grpc-default-executor"
+      ],
+      [
+        "injected",
+        "error"
+      ],
+      [
+        "invocationtargetexception"
+      ],
+      [
+        "transformlistener"
+      ]
+    ]
+  },
+  {
+    "uuid": "aa100326-220",
+    "start_time": "2025-06-11T15:10:55Z",
+    "end_time": "2025-06-11T15:31:55Z",
+    "fault_type": "jvm latency",
+    "fault_category": "jvm fault",
+    "root_cause_components": [
+      "adservice"
+    ],
+    "expected_log_patterns": [
+      [
+        "adservice-getRandomAds-latency"
+      ],
+      [
+        "deadlineexceeded"
+      ],
+      [
+        "invocationtargetexception"
+      ],
+      [
+        "transformlistener"
+      ]
+    ]
+  },
+  {
+    "uuid": "10889e22-221",
+    "start_time": "2025-06-11T16:10:02Z",
+    "end_time": "2025-06-11T16:26:02Z",
+    "fault_type": "network corrupt",
+    "fault_category": "network attack",
+    "root_cause_components": [
+      "frontend",
+      "recommendationservice"
+    ],
+    "expected_log_patterns": [
+      [
+        "Rpc",
+        "error",
+        "code",
+        "canceled",
+        "desc",
+        "context canceled"
+      ],
+      [
+        "unavailable"
+      ]
+    ]
+  },
+  {
+    "uuid": "87b43d57-223",
+    "start_time": "2025-06-11T18:10:06Z",
+    "end_time": "2025-06-11T18:29:06Z",
+    "fault_type": "jvm exception",
+    "fault_category": "jvm fault",
+    "root_cause_components": [
+      "adservice"
+    ],
+    "expected_log_patterns": [
+      [
+        "adservice-getrandomads-exception"
+      ],
+      [
+        "Caught",
+        "throwexception"
+      ],
+      [
+        "grpc-default-executor"
+      ],
+      [
+        "injected",
+        "error"
+      ],
+      [
+        "invocationtargetexception"
+      ],
+      [
+        "transformlistener"
+      ]
+    ]
+  },
+  {
+    "uuid": "53212d72-224",
+    "start_time": "2025-06-11T19:10:08Z",
+    "end_time": "2025-06-11T19:28:08Z",
+    "fault_type": "network corrupt",
+    "fault_category": "network attack",
+    "root_cause_components": [
+      "frontend",
+      "productcatalogservice"
+    ],
+    "expected_log_patterns": [
+      [
+        "Error",
+        "while",
+        "dialing"
+      ],
+      [
+        "Rpc",
+        "error",
+        "code",
+        "canceled",
+        "desc",
+        "context canceled"
+      ],
+      [
+        "timeout"
+      ],
+      [
+        "unavailable"
+      ]
+    ]
+  },
+  {
+    "uuid": "ffabbbb0-227",
+    "start_time": "2025-06-11T22:10:13Z",
+    "end_time": "2025-06-11T22:32:13Z",
+    "fault_type": "network loss",
+    "fault_category": "network attack",
+    "root_cause_components": [
+      "cartservice",
+      "redis-cart",
+      "redis-cart-0"
+    ],
+    "expected_log_patterns": [
+      [
+        "failure"
+      ],
+      [
+        "Rpc",
+        "error",
+        "code",
+        "canceled",
+        "desc",
+        "context canceled"
+      ],
+      [
+        "timeout"
+      ]
+    ]
+  },
+  {
+    "uuid": "1193b5d8-230",
+    "start_time": "2025-06-12T01:10:18Z",
+    "end_time": "2025-06-12T01:29:18Z",
+    "fault_type": "pod failure",
+    "fault_category": "pod fault",
+    "root_cause_components": [
+      "cartservice",
+      "cartservice-1"
+    ],
+    "expected_log_patterns": [
+      [
+        "Connection",
+        "refused"
+      ],
+      [
+        "Error",
+        "while",
+        "dialing"
+      ],
+      [
+        "failure"
+      ],
+      [
+        "unavailable"
+      ]
+    ]
+  },
+  {
+    "uuid": "ee69c707-234",
+    "start_time": "2025-06-12T05:16:36Z",
+    "end_time": "2025-06-12T05:29:36Z",
+    "fault_type": "jvm gc",
+    "fault_category": "jvm fault",
+    "root_cause_components": [
+      "adservice",
+      "adservice-0"
+    ],
+    "expected_log_patterns": [
+      [
+        "adservice--gc"
+      ],
+      [
+        "deadlineexceeded"
+      ],
+      [
+        "GCHelper"
+      ],
+      [
+        "invocationtargetexception"
+      ],
+      [
+        "transformlistener"
+      ]
+    ]
+  },
+  {
+    "uuid": "4be46c92-236",
+    "start_time": "2025-06-12T07:02:46Z",
+    "end_time": "2025-06-12T07:26:46Z",
+    "fault_type": "jvm gc",
+    "fault_category": "jvm fault",
+    "root_cause_components": [
+      "adservice",
+      "adservice-0"
+    ],
+    "expected_log_patterns": [
+      [
+        "adservice--gc"
+      ],
+      [
+        "deadlineexceeded"
+      ],
+      [
+        "GCHelper"
+      ],
+      [
+        "invocationtargetexception"
+      ],
+      [
+        "transformlistener"
+      ]
+    ]
+  },
+  {
+    "uuid": "8c1e8ce9-237",
+    "start_time": "2025-06-12T08:02:48Z",
+    "end_time": "2025-06-12T08:25:48Z",
+    "fault_type": "jvm cpu",
+    "fault_category": "jvm fault",
+    "root_cause_components": [
+      "adservice",
+      "adservice-0"
+    ],
+    "expected_log_patterns": [
+      [
+        "adservice--stress"
+      ],
+      [
+        "deadlineexceeded"
+      ],
+      [
+        "invocationtargetexception"
+      ],
+      [
+        "transformlistener"
+      ]
+    ]
+  },
+  {
+    "uuid": "bc6f6978-239",
+    "start_time": "2025-06-12T10:02:52Z",
+    "end_time": "2025-06-12T10:18:52Z",
+    "fault_type": "network loss",
+    "fault_category": "network attack",
+    "root_cause_components": [
+      "productcatalogservice",
+      "recommendationservice"
+    ],
+    "expected_log_patterns": [
+      [
+        "Rpc",
+        "error",
+        "code",
+        "canceled",
+        "desc",
+        "context canceled"
+      ]
+    ]
+  },
+  {
+    "uuid": "980853cb-240",
+    "start_time": "2025-06-12T11:02:54Z",
+    "end_time": "2025-06-12T11:17:54Z",
+    "fault_type": "jvm exception",
+    "fault_category": "jvm fault",
+    "root_cause_components": [
+      "adservice"
+    ],
+    "expected_log_patterns": [
+      [
+        "adservice-getrandomads-exception"
+      ],
+      [
+        "Caught",
+        "throwexception"
+      ],
+      [
+        "grpc-default-executor"
+      ],
+      [
+        "injected",
+        "error"
+      ],
+      [
+        "invocationtargetexception"
+      ],
+      [
+        "transformlistener"
+      ]
+    ]
+  },
+  {
+    "uuid": "98eacd31-244",
+    "start_time": "2025-06-12T16:10:02Z",
+    "end_time": "2025-06-12T16:21:02Z",
+    "fault_type": "pod failure",
+    "fault_category": "pod fault",
+    "root_cause_components": [
+      "emailservice"
+    ],
+    "expected_log_patterns": [
+      [
+        "Connection",
+        "refused"
+      ],
+      [
+        "Error",
+        "while",
+        "dialing"
+      ],
+      [
+        "unavailable"
+      ]
+    ]
+  },
+  {
+    "uuid": "5645565c-248",
+    "start_time": "2025-06-12T20:10:09Z",
+    "end_time": "2025-06-12T20:30:09Z",
+    "fault_type": "network loss",
+    "fault_category": "network attack",
+    "root_cause_components": [
+      "cartservice",
+      "frontend"
+    ],
+    "expected_log_patterns": [
+      [
+        "Error",
+        "while",
+        "dialing"
+      ],
+      [
+        "Rpc",
+        "error",
+        "code",
+        "canceled",
+        "desc",
+        "context canceled"
+      ],
+      [
+        "timeout"
+      ],
+      [
+        "unavailable"
+      ]
+    ]
+  },
+  {
+    "uuid": "8c7ed41d-249",
+    "start_time": "2025-06-12T21:10:11Z",
+    "end_time": "2025-06-12T21:26:11Z",
+    "fault_type": "network delay",
+    "fault_category": "network attack",
+    "root_cause_components": [
+      "adservice",
+      "frontend"
+    ],
+    "expected_log_patterns": [
+      [
+        "deadlineexceeded"
+      ]
+    ]
+  },
+  {
+    "uuid": "4664a5e8-251",
+    "start_time": "2025-06-12T23:10:15Z",
+    "end_time": "2025-06-12T23:29:15Z",
+    "fault_type": "jvm exception",
+    "fault_category": "jvm fault",
+    "root_cause_components": [
+      "adservice"
+    ],
+    "expected_log_patterns": [
+      [
+        "adservice-getrandomads-exception"
+      ],
+      [
+        "Caught",
+        "throwexception"
+      ],
+      [
+        "grpc-default-executor"
+      ],
+      [
+        "injected",
+        "error"
+      ],
+      [
+        "invocationtargetexception"
+      ],
+      [
+        "transformlistener"
+      ]
+    ]
+  },
+  {
+    "uuid": "91c4c773-252",
+    "start_time": "2025-06-13T00:10:22Z",
+    "end_time": "2025-06-13T00:35:22Z",
+    "fault_type": "jvm cpu",
+    "fault_category": "jvm fault",
+    "root_cause_components": [
+      "adservice",
+      "adservice-0"
+    ],
+    "expected_log_patterns": [
+      [
+        "adservice--stress"
+      ],
+      [
+        "invocationtargetexception"
+      ],
+      [
+        "transformlistener"
+      ]
+    ]
+  },
+  {
+    "uuid": "f35a1832-257",
+    "start_time": "2025-06-13T05:10:48Z",
+    "end_time": "2025-06-13T05:31:48Z",
+    "fault_type": "jvm latency",
+    "fault_category": "jvm fault",
+    "root_cause_components": [
+      "adservice",
+      "adservice-0"
+    ],
+    "expected_log_patterns": [
+      [
+        "adservice-getRandomAds-latency"
+      ],
+      [
+        "invocationtargetexception"
+      ],
+      [
+        "transformlistener"
+      ]
+    ]
+  },
+  {
+    "uuid": "25368410-268",
+    "start_time": "2025-06-13T16:10:02Z",
+    "end_time": "2025-06-13T16:22:02Z",
+    "fault_type": "jvm cpu",
+    "fault_category": "jvm fault",
+    "root_cause_components": [
+      "adservice"
+    ],
+    "expected_log_patterns": [
+      [
+        "adservice--stress"
+      ],
+      [
+        "invocationtargetexception"
+      ],
+      [
+        "transformlistener"
+      ]
+    ]
+  },
+  {
+    "uuid": "37de08d4-269",
+    "start_time": "2025-06-13T17:10:04Z",
+    "end_time": "2025-06-13T17:20:04Z",
+    "fault_type": "network loss",
+    "fault_category": "network attack",
+    "root_cause_components": [
+      "productcatalogservice",
+      "recommendationservice"
+    ],
+    "expected_log_patterns": [
+      [
+        "Rpc",
+        "error",
+        "code",
+        "canceled",
+        "desc",
+        "context canceled"
+      ]
+    ]
+  },
+  {
+    "uuid": "c6e9faa0-270",
+    "start_time": "2025-06-13T18:10:08Z",
+    "end_time": "2025-06-13T18:20:08Z",
+    "fault_type": "memory stress",
+    "fault_category": "stress test",
+    "root_cause_components": [
+      "currencyservice",
+      "currencyservice-2"
+    ],
+    "expected_log_patterns": [
+      [
+        "could",
+        "not",
+        "load"
+      ]
+    ]
+  },
+  {
+    "uuid": "864797d5-271",
+    "start_time": "2025-06-13T19:10:10Z",
+    "end_time": "2025-06-13T19:34:10Z",
+    "fault_type": "jvm gc",
+    "fault_category": "jvm fault",
+    "root_cause_components": [
+      "adservice",
+      "adservice-0"
+    ],
+    "expected_log_patterns": [
+      [
+        "adservice--gc"
+      ],
+      [
+        "deadlineexceeded"
+      ],
+      [
+        "GCHelper"
+      ],
+      [
+        "invocationtargetexception"
+      ],
+      [
+        "transformlistener"
+      ]
+    ]
+  },
+  {
+    "uuid": "4e221a94-277",
+    "start_time": "2025-06-14T01:10:20Z",
+    "end_time": "2025-06-14T01:22:20Z",
+    "fault_type": "memory stress",
+    "fault_category": "stress test",
+    "root_cause_components": [
+      "paymentservice",
+      "paymentservice-1"
+    ],
+    "expected_log_patterns": [
+      [
+        "could",
+        "not",
+        "load"
+      ]
+    ]
+  },
+  {
+    "uuid": "a1b60eea-278",
+    "start_time": "2025-06-14T02:10:22Z",
+    "end_time": "2025-06-14T02:27:22Z",
+    "fault_type": "jvm gc",
+    "fault_category": "jvm fault",
+    "root_cause_components": [
+      "adservice",
+      "adservice-1"
+    ],
+    "expected_log_patterns": [
+      [
+        "adservice--gc"
+      ],
+      [
+        "GCHelper"
+      ],
+      [
+        "invocationtargetexception"
+      ],
+      [
+        "transformlistener"
+      ]
+    ]
+  },
+  {
+    "uuid": "825545e5-279",
+    "start_time": "2025-06-14T03:10:24Z",
+    "end_time": "2025-06-14T03:28:24Z",
+    "fault_type": "network corrupt",
+    "fault_category": "network attack",
+    "root_cause_components": [
+      "frontend",
+      "productcatalogservice"
+    ],
+    "expected_log_patterns": [
+      [
+        "Rpc",
+        "error",
+        "code",
+        "canceled",
+        "desc",
+        "context canceled"
+      ]
+    ]
+  },
+  {
+    "uuid": "de83df2d-281",
+    "start_time": "2025-06-14T05:10:28Z",
+    "end_time": "2025-06-14T05:31:28Z",
+    "fault_type": "pod failure",
+    "fault_category": "pod fault",
+    "root_cause_components": [
+      "adservice"
+    ],
+    "expected_log_patterns": [
+      [
+        "Connection",
+        "refused"
+      ],
+      [
+        "Error",
+        "while",
+        "dialing"
+      ],
+      [
+        "unavailable"
+      ]
+    ]
+  },
+  {
+    "uuid": "9c3b8fe7-282",
+    "start_time": "2025-06-14T06:10:30Z",
+    "end_time": "2025-06-14T06:31:30Z",
+    "fault_type": "network corrupt",
+    "fault_category": "network attack",
+    "root_cause_components": [
+      "cartservice",
+      "checkoutservice"
+    ],
+    "expected_log_patterns": [
+      [
+        "Error",
+        "while",
+        "dialing"
+      ],
+      [
+        "failure"
+      ],
+      [
+        "Rpc",
+        "error",
+        "code",
+        "canceled",
+        "desc",
+        "context canceled"
+      ],
+      [
+        "timeout"
+      ],
+      [
+        "unavailable"
+      ]
+    ]
+  },
+  {
+    "uuid": "84f4b04a-283",
+    "start_time": "2025-06-14T07:10:32Z",
+    "end_time": "2025-06-14T07:21:32Z",
+    "fault_type": "memory stress",
+    "fault_category": "stress test",
+    "root_cause_components": [
+      "currencyservice"
+    ],
+    "expected_log_patterns": [
+      [
+        "Connection",
+        "refused"
+      ],
+      [
+        "could",
+        "not",
+        "load"
+      ],
+      [
+        "Error",
+        "while",
+        "dialing"
+      ],
+      [
+        "unavailable"
+      ]
+    ]
+  },
+  {
+    "uuid": "11f619f0-285",
+    "start_time": "2025-06-14T09:10:35Z",
+    "end_time": "2025-06-14T09:32:35Z",
+    "fault_type": "pod failure",
+    "fault_category": "pod fault",
+    "root_cause_components": [
+      "productcatalogservice"
+    ],
+    "expected_log_patterns": [
+      [
+        "Connection",
+        "refused"
+      ],
+      [
+        "Error",
+        "while",
+        "dialing"
+      ],
+      [
+        "timeout"
+      ],
+      [
+        "unavailable"
+      ]
+    ]
+  },
+  {
+    "uuid": "04418665-287",
+    "start_time": "2025-06-14T11:10:40Z",
+    "end_time": "2025-06-14T11:25:40Z",
+    "fault_type": "jvm gc",
+    "fault_category": "jvm fault",
+    "root_cause_components": [
+      "adservice",
+      "adservice-1"
+    ],
+    "expected_log_patterns": [
+      [
+        "adservice--gc"
+      ],
+      [
+        "deadlineexceeded"
+      ],
+      [
+        "GCHelper"
+      ],
+      [
+        "transformlistener"
+      ]
+    ]
+  },
+  {
+    "uuid": "f370cf6d-291",
+    "start_time": "2025-06-14T15:10:48Z",
+    "end_time": "2025-06-14T15:25:48Z",
+    "fault_type": "jvm cpu",
+    "fault_category": "jvm fault",
+    "root_cause_components": [
+      "adservice"
+    ],
+    "expected_log_patterns": [
+      [
+        "adservice--stress"
+      ],
+      [
+        "invocationtargetexception"
+      ],
+      [
+        "transformlistener"
+      ]
+    ]
+  },
+  {
+    "uuid": "50bce1c4-311",
+    "start_time": "2025-06-16T16:10:02Z",
+    "end_time": "2025-06-16T16:26:02Z",
+    "fault_type": "code error",
+    "fault_category": "erroneous change",
+    "root_cause_components": [
+      "cartservice"
+    ],
+    "expected_log_patterns": [
+      [
+        "FailedPrecondition"
+      ],
+      [
+        "http.resp.status",
+        "302"
+      ],
+      [
+        "request error"
+      ],
+      [
+        "rpc",
+        "error"
+      ]
+    ]
+  },
+  {
+    "uuid": "b78dafc3-312",
+    "start_time": "2025-06-16T17:10:02Z",
+    "end_time": "2025-06-16T17:29:02Z",
+    "fault_type": "network corrupt",
+    "fault_category": "network attack",
+    "root_cause_components": [
+      "productcatalogservice",
+      "recommendationservice"
+    ],
+    "expected_log_patterns": [
+      [
+        "context",
+        "canceled"
+      ],
+      [
+        "http.resp.status",
+        "302"
+      ],
+      [
+        "request error"
+      ],
+      [
+        "rpc",
+        "error"
+      ],
+      [
+        "timeout"
+      ],
+      [
+        "unavailable"
+      ]
+    ]
+  },
+  {
+    "uuid": "009be6db-313",
+    "start_time": "2025-06-16T18:10:05Z",
+    "end_time": "2025-06-16T18:24:05Z",
+    "fault_type": "code error",
+    "fault_category": "erroneous change",
+    "root_cause_components": [
+      "cartservice"
+    ],
+    "expected_log_patterns": [
+      [
+        "FailedPrecondition"
+      ],
+      [
+        "http.resp.status",
+        "302"
+      ],
+      [
+        "request error"
+      ],
+      [
+        "rpc",
+        "error"
+      ]
+    ]
+  },
+  {
+    "uuid": "e539dea4-322",
+    "start_time": "2025-06-17T03:10:20Z",
+    "end_time": "2025-06-17T03:35:20Z",
+    "fault_type": "code error",
+    "fault_category": "erroneous change",
+    "root_cause_components": [
+      "checkoutservice"
+    ],
+    "expected_log_patterns": [
+      [
+        "context",
+        "canceled"
+      ],
+      [
+        "http.resp.status",
+        "302"
+      ],
+      [
+        "request error"
+      ],
+      [
+        "rpc",
+        "error"
+      ]
+    ]
+  },
+  {
+    "uuid": "ed40c5a3-324",
+    "start_time": "2025-06-17T05:10:21Z",
+    "end_time": "2025-06-17T05:21:21Z",
+    "fault_type": "network delay",
+    "fault_category": "network attack",
+    "root_cause_components": [
+      "frontend",
+      "recommendationservice"
+    ],
+    "expected_log_patterns": [
+      [
+        "http.resp.status",
+        "302"
+      ]
+    ]
+  },
+  {
+    "uuid": "55b23e04-325",
+    "start_time": "2025-06-17T06:10:38Z",
+    "end_time": "2025-06-17T06:28:38Z",
+    "fault_type": "dns error",
+    "fault_category": "dns fault",
+    "root_cause_components": [
+      "checkoutservice",
+      "checkoutservice-2"
+    ],
+    "expected_log_patterns": [
+      [
+        "http.resp.status",
+        "302"
+      ],
+      [
+        "Internal"
+      ],
+      [
+        "request error"
+      ],
+      [
+        "rpc",
+        "error"
+      ]
+    ]
+  },
+  {
+    "uuid": "53ab3ccb-326",
+    "start_time": "2025-06-17T07:10:39Z",
+    "end_time": "2025-06-17T07:30:39Z",
+    "fault_type": "code error",
+    "fault_category": "erroneous change",
+    "root_cause_components": [
+      "frontend"
+    ],
+    "expected_log_patterns": [
+      [
+        "deadlineexceeded"
+      ],
+      [
+        "http.resp.status",
+        "302"
+      ],
+      [
+        "rpc",
+        "error"
+      ]
+    ]
+  },
+  {
+    "uuid": "4fd42adb-327",
+    "start_time": "2025-06-17T08:10:39Z",
+    "end_time": "2025-06-17T08:22:39Z",
+    "fault_type": "memory stress",
+    "fault_category": "stress test",
+    "root_cause_components": [
+      "adservice"
+    ],
+    "expected_log_patterns": [
+      [
+        "deadlineexceeded"
+      ],
+      [
+        "http.resp.status",
+        "302"
+      ],
+      [
+        "rpc",
+        "error"
+      ],
+      [
+        "transport",
+        "Error",
+        "while",
+        "dialing"
+      ],
+      [
+        "unavailable"
+      ]
+    ]
+  },
+  {
+    "uuid": "d44478e6-328",
+    "start_time": "2025-06-17T09:10:41Z",
+    "end_time": "2025-06-17T09:35:41Z",
+    "fault_type": "dns error",
+    "fault_category": "dns fault",
+    "root_cause_components": [
+      "checkoutservice",
+      "checkoutservice-0"
+    ],
+    "expected_log_patterns": [
+      [
+        "http.resp.status",
+        "302"
+      ]
+    ]
+  },
+  {
+    "uuid": "c3f4fde9-330",
+    "start_time": "2025-06-17T11:10:44Z",
+    "end_time": "2025-06-17T11:33:44Z",
+    "fault_type": "network delay",
+    "fault_category": "network attack",
+    "root_cause_components": [
+      "checkoutservice",
+      "emailservice"
+    ],
+    "expected_log_patterns": [
+      [
+        "http.resp.status",
+        "302"
+      ]
+    ]
+  },
+  {
+    "uuid": "76222cb2-331",
+    "start_time": "2025-06-17T12:10:46Z",
+    "end_time": "2025-06-17T12:34:46Z",
+    "fault_type": "code error",
+    "fault_category": "erroneous change",
+    "root_cause_components": [
+      "currencyservice"
+    ],
+    "expected_log_patterns": [
+      [
+        "context",
+        "canceled"
+      ],
+      [
+        "http.resp.status",
+        "302"
+      ],
+      [
+        "Internal"
+      ],
+      [
+        "request error"
+      ],
+      [
+        "rpc",
+        "error"
+      ]
+    ]
+  },
+  {
+    "uuid": "68bbf4fd-332",
+    "start_time": "2025-06-17T13:10:47Z",
+    "end_time": "2025-06-17T13:27:47Z",
+    "fault_type": "dns error",
+    "fault_category": "dns fault",
+    "root_cause_components": [
+      "checkoutservice",
+      "checkoutservice-0"
+    ],
+    "expected_log_patterns": [
+      [
+        "http.resp.status",
+        "302"
+      ]
+    ]
+  },
+  {
+    "uuid": "e1562aa2-335",
+    "start_time": "2025-06-17T16:10:02Z",
+    "end_time": "2025-06-17T16:29:02Z",
+    "fault_type": "dns error",
+    "fault_category": "dns fault",
+    "root_cause_components": [
+      "checkoutservice",
+      "checkoutservice-2"
+    ],
+    "expected_log_patterns": [
+      [
+        "http.resp.status",
+        "302"
+      ]
+    ]
+  },
+  {
+    "uuid": "c3377c5c-337",
+    "start_time": "2025-06-17T18:10:04Z",
+    "end_time": "2025-06-17T18:29:04Z",
+    "fault_type": "network corrupt",
+    "fault_category": "network attack",
+    "root_cause_components": [
+      "adservice",
+      "frontend"
+    ],
+    "expected_log_patterns": [
+      [
+        "deadlineexceeded"
+      ],
+      [
+        "http.resp.status",
+        "302"
+      ],
+      [
+        "rpc",
+        "error"
+      ]
+    ]
+  },
+  {
+    "uuid": "8c61bc09-338",
+    "start_time": "2025-06-17T19:10:05Z",
+    "end_time": "2025-06-17T19:25:05Z",
+    "fault_type": "code error",
+    "fault_category": "erroneous change",
+    "root_cause_components": [
+      "frontend"
+    ],
+    "expected_log_patterns": [
+      [
+        "deadlineexceeded"
+      ],
+      [
+        "http.resp.status",
+        "302"
+      ],
+      [
+        "rpc",
+        "error"
+      ]
+    ]
+  },
+  {
+    "uuid": "0a9fce75-340",
+    "start_time": "2025-06-17T21:10:07Z",
+    "end_time": "2025-06-17T21:28:07Z",
+    "fault_type": "pod failure",
+    "fault_category": "pod fault",
+    "root_cause_components": [
+      "tidb-pd",
+      "tidb-pd-0"
+    ],
+    "expected_log_patterns": [
+      [
+        "failure"
+      ],
+      [
+        "timeout"
+      ]
+    ]
+  },
+  {
+    "uuid": "b9319370-341",
+    "start_time": "2025-06-17T22:10:08Z",
+    "end_time": "2025-06-17T22:34:08Z",
+    "fault_type": "code error",
+    "fault_category": "erroneous change",
+    "root_cause_components": [
+      "productcatalogservice"
+    ],
+    "expected_log_patterns": [
+      [
+        "context",
+        "canceled"
+      ],
+      [
+        "http.resp.status",
+        "302"
+      ],
+      [
+        "request error"
+      ],
+      [
+        "rpc",
+        "error"
+      ],
+      [
+        "transport",
+        "Error",
+        "while",
+        "dialing"
+      ],
+      [
+        "unavailable"
+      ]
+    ]
+  },
+  {
+    "uuid": "b96848a5-342",
+    "start_time": "2025-06-17T23:10:08Z",
+    "end_time": "2025-06-17T23:32:08Z",
+    "fault_type": "code error",
+    "fault_category": "erroneous change",
+    "root_cause_components": [
+      "cartservice"
+    ],
+    "expected_log_patterns": [
+      [
+        "FailedPrecondition"
+      ],
+      [
+        "http.resp.status",
+        "302"
+      ],
+      [
+        "request error"
+      ],
+      [
+        "rpc",
+        "error"
+      ]
+    ]
+  },
+  {
+    "uuid": "88b7daff-343",
+    "start_time": "2025-06-18T00:10:09Z",
+    "end_time": "2025-06-18T00:24:09Z",
+    "fault_type": "network delay",
+    "fault_category": "network attack",
+    "root_cause_components": [
+      "cartservice",
+      "redis-cart",
+      "redis-cart-0"
+    ],
+    "expected_log_patterns": [
+      [
+        "http.resp.status",
+        "302"
+      ]
+    ]
+  },
+  {
+    "uuid": "09b7c00b-344",
+    "start_time": "2025-06-18T01:10:10Z",
+    "end_time": "2025-06-18T01:27:10Z",
+    "fault_type": "code error",
+    "fault_category": "erroneous change",
+    "root_cause_components": [
+      "cartservice"
+    ],
+    "expected_log_patterns": [
+      [
+        "FailedPrecondition"
+      ],
+      [
+        "http.resp.status",
+        "302"
+      ],
+      [
+        "request error"
+      ],
+      [
+        "rpc",
+        "error"
+      ]
+    ]
+  },
+  {
+    "uuid": "b9539d8e-345",
+    "start_time": "2025-06-18T02:10:11Z",
+    "end_time": "2025-06-18T02:30:11Z",
+    "fault_type": "target port misconfig",
+    "fault_category": "misconfiguration",
+    "root_cause_components": [
+      "productcatalogservice"
+    ],
+    "expected_log_patterns": [
+      [
+        "http.resp.status",
+        "302"
+      ],
+      [
+        "Internal"
+      ],
+      [
+        "request error"
+      ],
+      [
+        "rpc",
+        "error"
+      ],
+      [
+        "timeout"
+      ],
+      [
+        "transport",
+        "Error",
+        "while",
+        "dialing"
+      ],
+      [
+        "unavailable"
+      ]
+    ]
+  },
+  {
+    "uuid": "76937ba4-346",
+    "start_time": "2025-06-18T03:10:11Z",
+    "end_time": "2025-06-18T03:26:11Z",
+    "fault_type": "network corrupt",
+    "fault_category": "network attack",
+    "root_cause_components": [
+      "frontend",
+      "productcatalogservice"
+    ],
+    "expected_log_patterns": [
+      [
+        "context",
+        "canceled"
+      ],
+      [
+        "http.resp.status",
+        "302"
+      ],
+      [
+        "request error"
+      ],
+      [
+        "rpc",
+        "error"
+      ]
+    ]
+  },
+  {
+    "uuid": "1d868f8e-347",
+    "start_time": "2025-06-18T04:10:12Z",
+    "end_time": "2025-06-18T04:33:12Z",
+    "fault_type": "network delay",
+    "fault_category": "network attack",
+    "root_cause_components": [
+      "checkoutservice",
+      "frontend"
+    ],
+    "expected_log_patterns": [
+      [
+        "http.resp.status",
+        "302"
+      ]
+    ]
+  },
+  {
+    "uuid": "fb20d6d2-350",
+    "start_time": "2025-06-18T07:10:16Z",
+    "end_time": "2025-06-18T07:25:16Z",
+    "fault_type": "dns error",
+    "fault_category": "dns fault",
+    "root_cause_components": [
+      "checkoutservice",
+      "checkoutservice-2"
+    ],
+    "expected_log_patterns": [
+      [
+        "http.resp.status",
+        "302"
+      ]
+    ]
+  },
+  {
+    "uuid": "1ef94bd7-352",
+    "start_time": "2025-06-18T09:10:19Z",
+    "end_time": "2025-06-18T09:32:19Z",
+    "fault_type": "node memory stress",
+    "fault_category": "node fault",
+    "root_cause_components": [
+      "aiops-k8s-04"
+    ],
+    "expected_log_patterns": [
+      [
+        "http.resp.status",
+        "302"
+      ]
+    ]
+  },
+  {
+    "uuid": "178aa45f-353",
+    "start_time": "2025-06-18T10:10:20Z",
+    "end_time": "2025-06-18T10:23:20Z",
+    "fault_type": "dns error",
+    "fault_category": "dns fault",
+    "root_cause_components": [
+      "checkoutservice"
+    ],
+    "expected_log_patterns": [
+      [
+        "failure"
+      ],
+      [
+        "http.resp.status",
+        "302"
+      ],
+      [
+        "Internal"
+      ],
+      [
+        "request error"
+      ],
+      [
+        "rpc",
+        "error"
+      ],
+      [
+        "transport",
+        "Error",
+        "while",
+        "dialing"
+      ],
+      [
+        "unavailable"
+      ]
+    ]
+  },
+  {
+    "uuid": "b9e3efbd-357",
+    "start_time": "2025-06-18T14:10:27Z",
+    "end_time": "2025-06-18T14:22:27Z",
+    "fault_type": "pod failure",
+    "fault_category": "pod fault",
+    "root_cause_components": [
+      "tidb-tikv",
+      "tidb-tikv-0"
+    ],
+    "expected_log_patterns": [
+      [
+        "failure"
+      ],
+      [
+        "unavailable"
+      ]
+    ]
+  },
+  {
+    "uuid": "7bd681bb-358",
+    "start_time": "2025-06-18T15:10:30Z",
+    "end_time": "2025-06-18T15:31:30Z",
+    "fault_type": "code error",
+    "fault_category": "erroneous change",
+    "root_cause_components": [
+      "checkoutservice"
+    ],
+    "expected_log_patterns": [
+      [
+        "context",
+        "canceled"
+      ],
+      [
+        "http.resp.status",
+        "302"
+      ],
+      [
+        "request error"
+      ],
+      [
+        "rpc",
+        "error"
+      ]
+    ]
+  },
+  {
+    "uuid": "7c0d7152-359",
+    "start_time": "2025-06-18T16:10:01Z",
+    "end_time": "2025-06-18T16:26:01Z",
+    "fault_type": "target port misconfig",
+    "fault_category": "misconfiguration",
+    "root_cause_components": [
+      "emailservice"
+    ],
+    "expected_log_patterns": [
+      [
+        "rpc",
+        "error"
+      ],
+      [
+        "transport",
+        "Error",
+        "while",
+        "dialing"
+      ],
+      [
+        "unavailable"
+      ]
+    ]
+  },
+  {
+    "uuid": "46fc7b93-360",
+    "start_time": "2025-06-18T17:10:02Z",
+    "end_time": "2025-06-18T17:31:02Z",
+    "fault_type": "pod failure",
+    "fault_category": "pod fault",
+    "root_cause_components": [
+      "tidb-pd",
+      "tidb-pd-0"
+    ],
+    "expected_log_patterns": [
+      [
+        "failure"
+      ],
+      [
+        "timeout"
+      ]
+    ]
+  },
+  {
+    "uuid": "f5e2df8d-361",
+    "start_time": "2025-06-18T18:10:03Z",
+    "end_time": "2025-06-18T18:24:03Z",
+    "fault_type": "pod failure",
+    "fault_category": "pod fault",
+    "root_cause_components": [
+      "tidb-pd",
+      "tidb-pd-0"
+    ],
+    "expected_log_patterns": [
+      [
+        "failure"
+      ],
+      [
+        "timeout"
+      ]
+    ]
+  },
+  {
+    "uuid": "f0015bac-362",
+    "start_time": "2025-06-18T19:10:04Z",
+    "end_time": "2025-06-18T19:29:04Z",
+    "fault_type": "pod failure",
+    "fault_category": "pod fault",
+    "root_cause_components": [
+      "tidb-tikv",
+      "tidb-tikv-0"
+    ],
+    "expected_log_patterns": [
+      [
+        "failure"
+      ],
+      [
+        "unavailable"
+      ]
+    ]
+  },
+  {
+    "uuid": "b06baad3-363",
+    "start_time": "2025-06-18T20:10:06Z",
+    "end_time": "2025-06-18T20:26:06Z",
+    "fault_type": "target port misconfig",
+    "fault_category": "misconfiguration",
+    "root_cause_components": [
+      "adservice"
+    ],
+    "expected_log_patterns": [
+      [
+        "http.resp.status",
+        "302"
+      ],
+      [
+        "rpc",
+        "error"
+      ],
+      [
+        "transport",
+        "Error",
+        "while",
+        "dialing"
+      ],
+      [
+        "unavailable"
+      ]
+    ]
+  },
+  {
+    "uuid": "fe4efdc8-364",
+    "start_time": "2025-06-18T21:10:06Z",
+    "end_time": "2025-06-18T21:30:06Z",
+    "fault_type": "dns error",
+    "fault_category": "dns fault",
+    "root_cause_components": [
+      "checkoutservice"
+    ],
+    "expected_log_patterns": [
+      [
+        "http.resp.status",
+        "302"
+      ],
+      [
+        "Internal"
+      ],
+      [
+        "request error"
+      ],
+      [
+        "rpc",
+        "error"
+      ],
+      [
+        "transport",
+        "Error",
+        "while",
+        "dialing"
+      ],
+      [
+        "unavailable"
+      ]
+    ]
+  },
+  {
+    "uuid": "14c1047f-366",
+    "start_time": "2025-06-18T23:10:08Z",
+    "end_time": "2025-06-18T23:33:08Z",
+    "fault_type": "code error",
+    "fault_category": "erroneous change",
+    "root_cause_components": [
+      "currencyservice"
+    ],
+    "expected_log_patterns": [
+      [
+        "context",
+        "canceled"
+      ],
+      [
+        "http.resp.status",
+        "302"
+      ],
+      [
+        "Internal"
+      ],
+      [
+        "request error"
+      ],
+      [
+        "rpc",
+        "error"
+      ],
+      [
+        "transport",
+        "Error",
+        "while",
+        "dialing"
+      ],
+      [
+        "unavailable"
+      ]
+    ]
+  },
+  {
+    "uuid": "aba2da7f-368",
+    "start_time": "2025-06-19T01:10:09Z",
+    "end_time": "2025-06-19T01:32:09Z",
+    "fault_type": "network delay",
+    "fault_category": "network attack",
+    "root_cause_components": [
+      "cartservice",
+      "frontend"
+    ],
+    "expected_log_patterns": [
+      [
+        "http.resp.status",
+        "302"
+      ]
+    ]
+  },
+  {
+    "uuid": "e3884815-369",
+    "start_time": "2025-06-19T02:10:11Z",
+    "end_time": "2025-06-19T02:25:11Z",
+    "fault_type": "pod failure",
+    "fault_category": "pod fault",
+    "root_cause_components": [
+      "tidb-tidb",
+      "tidb-tidb-0"
+    ],
+    "expected_log_patterns": [
+      [
+        "failure"
+      ]
+    ]
+  },
+  {
+    "uuid": "2e8873a5-370",
+    "start_time": "2025-06-19T03:10:13Z",
+    "end_time": "2025-06-19T03:22:13Z",
+    "fault_type": "dns error",
+    "fault_category": "dns fault",
+    "root_cause_components": [
+      "checkoutservice",
+      "checkoutservice-2"
+    ],
+    "expected_log_patterns": [
+      [
+        "failure"
+      ],
+      [
+        "http.resp.status",
+        "302"
+      ],
+      [
+        "Internal"
+      ],
+      [
+        "request error"
+      ],
+      [
+        "rpc",
+        "error"
+      ],
+      [
+        "transport",
+        "Error",
+        "while",
+        "dialing"
+      ],
+      [
+        "unavailable"
+      ]
+    ]
+  },
+  {
+    "uuid": "593e3d6b-371",
+    "start_time": "2025-06-19T04:10:14Z",
+    "end_time": "2025-06-19T04:25:14Z",
+    "fault_type": "node disk fill",
+    "fault_category": "node fault",
+    "root_cause_components": [
+      "aiops-k8s-08"
+    ],
+    "expected_log_patterns": [
+      [
+        "http.resp.status",
+        "302"
+      ]
+    ]
+  },
+  {
+    "uuid": "9450018e-372",
+    "start_time": "2025-06-19T05:10:16Z",
+    "end_time": "2025-06-19T05:22:16Z",
+    "fault_type": "code error",
+    "fault_category": "erroneous change",
+    "root_cause_components": [
+      "currencyservice"
+    ],
+    "expected_log_patterns": [
+      [
+        "context",
+        "canceled"
+      ],
+      [
+        "http.resp.status",
+        "302"
+      ],
+      [
+        "Internal"
+      ],
+      [
+        "request error"
+      ],
+      [
+        "rpc",
+        "error"
+      ],
+      [
+        "transport",
+        "Error",
+        "while",
+        "dialing"
+      ],
+      [
+        "unavailable"
+      ]
+    ]
+  },
+  {
+    "uuid": "0419ba04-373",
+    "start_time": "2025-06-19T06:10:19Z",
+    "end_time": "2025-06-19T06:28:19Z",
+    "fault_type": "target port misconfig",
+    "fault_category": "misconfiguration",
+    "root_cause_components": [
+      "currencyservice"
+    ],
+    "expected_log_patterns": [
+      [
+        "http.resp.status",
+        "302"
+      ],
+      [
+        "Internal"
+      ],
+      [
+        "request error"
+      ],
+      [
+        "rpc",
+        "error"
+      ],
+      [
+        "transport",
+        "Error",
+        "while",
+        "dialing"
+      ],
+      [
+        "unavailable"
+      ]
+    ]
+  },
+  {
+    "uuid": "80cdc066-374",
+    "start_time": "2025-06-19T07:10:21Z",
+    "end_time": "2025-06-19T07:33:21Z",
+    "fault_type": "network corrupt",
+    "fault_category": "network attack",
+    "root_cause_components": [
+      "checkoutservice",
+      "shippingservice"
+    ],
+    "expected_log_patterns": [
+      [
+        "context",
+        "canceled"
+      ],
+      [
+        "failure"
+      ],
+      [
+        "http.resp.status",
+        "302"
+      ],
+      [
+        "Internal"
+      ],
+      [
+        "request error"
+      ],
+      [
+        "rpc",
+        "error"
+      ],
+      [
+        "timeout"
+      ],
+      [
+        "transport",
+        "Error",
+        "while",
+        "dialing"
+      ],
+      [
+        "unavailable"
+      ]
+    ]
+  },
+  {
+    "uuid": "bf022434-378",
+    "start_time": "2025-06-19T11:10:25Z",
+    "end_time": "2025-06-19T11:27:25Z",
+    "fault_type": "network loss",
+    "fault_category": "network attack",
+    "root_cause_components": [
+      "checkoutservice",
+      "frontend"
+    ],
+    "expected_log_patterns": [
+      [
+        "context",
+        "canceled"
+      ],
+      [
+        "http.resp.status",
+        "302"
+      ],
+      [
+        "request error"
+      ],
+      [
+        "rpc",
+        "error"
+      ],
+      [
+        "unavailable"
+      ]
+    ]
+  },
+  {
+    "uuid": "d124f9b7-379",
+    "start_time": "2025-06-19T12:10:27Z",
+    "end_time": "2025-06-19T12:33:27Z",
+    "fault_type": "cpu stress",
+    "fault_category": "stress test",
+    "root_cause_components": [
+      "productcatalogservice",
+      "productcatalogservice-0"
+    ],
+    "expected_log_patterns": [
+      [
+        "http.resp.status",
+        "302"
+      ]
+    ]
+  },
+  {
+    "uuid": "38d69375-380",
+    "start_time": "2025-06-19T13:10:28Z",
+    "end_time": "2025-06-19T13:27:28Z",
+    "fault_type": "pod failure",
+    "fault_category": "pod fault",
+    "root_cause_components": [
+      "tidb-tidb",
+      "tidb-tidb-0"
+    ],
+    "expected_log_patterns": [
+      [
+        "failure"
+      ]
+    ]
+  },
+  {
+    "uuid": "d0ecec7e-381",
+    "start_time": "2025-06-19T14:10:30Z",
+    "end_time": "2025-06-19T14:21:30Z",
+    "fault_type": "target port misconfig",
+    "fault_category": "misconfiguration",
+    "root_cause_components": [
+      "checkoutservice"
+    ],
+    "expected_log_patterns": [
+      [
+        "http.resp.status",
+        "302"
+      ],
+      [
+        "request error"
+      ],
+      [
+        "rpc",
+        "error"
+      ],
+      [
+        "transport",
+        "Error",
+        "while",
+        "dialing"
+      ],
+      [
+        "unavailable"
+      ]
+    ]
+  },
+  {
+    "uuid": "9f49250a-383",
+    "start_time": "2025-06-19T16:10:01Z",
+    "end_time": "2025-06-19T16:34:01Z",
+    "fault_type": "target port misconfig",
+    "fault_category": "misconfiguration",
+    "root_cause_components": [
+      "emailservice"
+    ],
+    "expected_log_patterns": [
+      [
+        "rpc",
+        "error"
+      ],
+      [
+        "transport",
+        "Error",
+        "while",
+        "dialing"
+      ],
+      [
+        "unavailable"
+      ]
+    ]
+  },
+  {
+    "uuid": "9d5029d9-385",
+    "start_time": "2025-06-19T18:10:03Z",
+    "end_time": "2025-06-19T18:34:03Z",
+    "fault_type": "network corrupt",
+    "fault_category": "network attack",
+    "root_cause_components": [
+      "checkoutservice",
+      "productcatalogservice"
+    ],
+    "expected_log_patterns": [
+      [
+        "context",
+        "canceled"
+      ],
+      [
+        "http.resp.status",
+        "302"
+      ],
+      [
+        "Internal"
+      ],
+      [
+        "request error"
+      ],
+      [
+        "rpc",
+        "error"
+      ]
+    ]
+  },
+  {
+    "uuid": "91b14fe1-386",
+    "start_time": "2025-06-19T19:10:04Z",
+    "end_time": "2025-06-19T19:25:04Z",
+    "fault_type": "pod failure",
+    "fault_category": "pod fault",
+    "root_cause_components": [
+      "tidb-tikv",
+      "tidb-tikv-0"
+    ],
+    "expected_log_patterns": [
+      [
+        "failure"
+      ],
+      [
+        "unavailable"
+      ]
+    ]
+  },
+  {
+    "uuid": "772b36d0-389",
+    "start_time": "2025-06-19T22:10:08Z",
+    "end_time": "2025-06-19T22:22:08Z",
+    "fault_type": "pod failure",
+    "fault_category": "pod fault",
+    "root_cause_components": [
+      "tidb-tikv",
+      "tidb-tikv-0"
+    ],
+    "expected_log_patterns": [
+      [
+        "failure"
+      ],
+      [
+        "unavailable"
+      ]
+    ]
+  },
+  {
+    "uuid": "9b0004fb-390",
+    "start_time": "2025-06-19T23:10:10Z",
+    "end_time": "2025-06-19T23:31:10Z",
+    "fault_type": "network loss",
+    "fault_category": "network attack",
+    "root_cause_components": [
+      "checkoutservice",
+      "shippingservice"
+    ],
+    "expected_log_patterns": [
+      [
+        "failure"
+      ],
+      [
+        "http.resp.status",
+        "302"
+      ],
+      [
+        "Internal"
+      ],
+      [
+        "request error"
+      ],
+      [
+        "rpc",
+        "error"
+      ],
+      [
+        "timeout"
+      ],
+      [
+        "transport",
+        "Error",
+        "while",
+        "dialing"
+      ],
+      [
+        "unavailable"
+      ]
+    ]
+  },
+  {
+    "uuid": "5028909d-391",
+    "start_time": "2025-06-20T00:10:11Z",
+    "end_time": "2025-06-20T00:28:11Z",
+    "fault_type": "dns error",
+    "fault_category": "dns fault",
+    "root_cause_components": [
+      "checkoutservice"
+    ],
+    "expected_log_patterns": [
+      [
+        "http.resp.status",
+        "302"
+      ],
+      [
+        "rpc",
+        "error"
+      ],
+      [
+        "timeout"
+      ],
+      [
+        "transport",
+        "Error",
+        "while",
+        "dialing"
+      ],
+      [
+        "unavailable"
+      ]
+    ]
+  },
+  {
+    "uuid": "e1950aec-393",
+    "start_time": "2025-06-20T02:10:13Z",
+    "end_time": "2025-06-20T02:22:13Z",
+    "fault_type": "dns error",
+    "fault_category": "dns fault",
+    "root_cause_components": [
+      "checkoutservice"
+    ],
+    "expected_log_patterns": [
+      [
+        "failure"
+      ],
+      [
+        "http.resp.status",
+        "302"
+      ],
+      [
+        "Internal"
+      ],
+      [
+        "request error"
+      ],
+      [
+        "rpc",
+        "error"
+      ],
+      [
+        "transport",
+        "Error",
+        "while",
+        "dialing"
+      ],
+      [
+        "unavailable"
+      ]
+    ]
+  },
+  {
+    "uuid": "ec746a17-395",
+    "start_time": "2025-06-20T04:10:15Z",
+    "end_time": "2025-06-20T04:32:15Z",
+    "fault_type": "pod failure",
+    "fault_category": "pod fault",
+    "root_cause_components": [
+      "tidb-tikv",
+      "tidb-tikv-0"
+    ],
+    "expected_log_patterns": [
+      [
+        "failure"
+      ],
+      [
+        "unavailable"
+      ]
+    ]
+  },
+  {
+    "uuid": "3966f44b-396",
+    "start_time": "2025-06-20T05:10:17Z",
+    "end_time": "2025-06-20T05:35:17Z",
+    "fault_type": "network delay",
+    "fault_category": "network attack",
+    "root_cause_components": [
+      "currencyservice",
+      "frontend"
+    ],
+    "expected_log_patterns": [
+      [
+        "http.resp.status",
+        "302"
+      ]
+    ]
+  },
+  {
+    "uuid": "4153e4c6-397",
+    "start_time": "2025-06-20T06:10:19Z",
+    "end_time": "2025-06-20T06:24:19Z",
+    "fault_type": "network corrupt",
+    "fault_category": "network attack",
+    "root_cause_components": [
+      "cartservice",
+      "frontend"
+    ],
+    "expected_log_patterns": [
+      [
+        "context",
+        "canceled"
+      ],
+      [
+        "http.resp.status",
+        "302"
+      ],
+      [
+        "Internal"
+      ],
+      [
+        "request error"
+      ],
+      [
+        "rpc",
+        "error"
+      ],
+      [
+        "unavailable"
+      ]
+    ]
+  },
+  {
+    "uuid": "652408d6-398",
+    "start_time": "2025-06-20T07:10:20Z",
+    "end_time": "2025-06-20T07:27:20Z",
+    "fault_type": "network loss",
+    "fault_category": "network attack",
+    "root_cause_components": [
+      "frontend",
+      "recommendationservice"
+    ],
+    "expected_log_patterns": [
+      [
+        "context",
+        "canceled"
+      ],
+      [
+        "http.resp.status",
+        "302"
+      ],
+      [
+        "request error"
+      ],
+      [
+        "rpc",
+        "error"
+      ],
+      [
+        "timeout"
+      ],
+      [
+        "transport",
+        "Error",
+        "while",
+        "dialing"
+      ],
+      [
+        "unavailable"
+      ]
+    ]
+  },
+  {
+    "uuid": "c1e38e2e-399",
+    "start_time": "2025-06-20T08:10:22Z",
+    "end_time": "2025-06-20T08:33:22Z",
+    "fault_type": "pod failure",
+    "fault_category": "pod fault",
+    "root_cause_components": [
+      "tidb-pd",
+      "tidb-pd-0"
+    ],
+    "expected_log_patterns": [
+      [
+        "failure"
+      ],
+      [
+        "timeout"
+      ]
+    ]
+  },
+  {
+    "uuid": "cd049902-400",
+    "start_time": "2025-06-20T09:10:23Z",
+    "end_time": "2025-06-20T09:33:23Z",
+    "fault_type": "code error",
+    "fault_category": "erroneous change",
+    "root_cause_components": [
+      "frontend"
+    ],
+    "expected_log_patterns": [
+      [
+        "http.resp.status",
+        "302"
+      ]
+    ]
+  },
+  {
+    "uuid": "5cb1626b-401",
+    "start_time": "2025-06-20T10:10:24Z",
+    "end_time": "2025-06-20T10:30:24Z",
+    "fault_type": "pod failure",
+    "fault_category": "pod fault",
+    "root_cause_components": [
+      "tidb-tikv",
+      "tidb-tikv-0"
+    ],
+    "expected_log_patterns": [
+      [
+        "failure"
+      ],
+      [
+        "unavailable"
+      ]
+    ]
+  },
+  {
+    "uuid": "3f4b31ee-402",
+    "start_time": "2025-06-20T11:10:25Z",
+    "end_time": "2025-06-20T11:24:25Z",
+    "fault_type": "node cpu stress",
+    "fault_category": "node fault",
+    "root_cause_components": [
+      "aiops-k8s-06"
+    ],
+    "expected_log_patterns": [
+      [
+        "http.resp.status",
+        "302"
+      ]
+    ]
+  },
+  {
+    "uuid": "55759137-403",
+    "start_time": "2025-06-20T12:10:27Z",
+    "end_time": "2025-06-20T12:30:27Z",
+    "fault_type": "network loss",
+    "fault_category": "network attack",
+    "root_cause_components": [
+      "cartservice",
+      "redis-cart",
+      "redis-cart-0"
+    ],
+    "expected_log_patterns": [
+      [
+        "FailedPrecondition"
+      ],
+      [
+        "failure"
+      ],
+      [
+        "http.resp.status",
+        "302"
+      ],
+      [
+        "Internal"
+      ],
+      [
+        "request error"
+      ],
+      [
+        "rpc",
+        "error"
+      ],
+      [
+        "timeout"
+      ]
+    ]
+  },
+  {
+    "uuid": "e566fa68-404",
+    "start_time": "2025-06-20T13:10:28Z",
+    "end_time": "2025-06-20T13:32:28Z",
+    "fault_type": "dns error",
+    "fault_category": "dns fault",
+    "root_cause_components": [
+      "checkoutservice"
+    ],
+    "expected_log_patterns": [
+      [
+        "failure"
+      ],
+      [
+        "http.resp.status",
+        "302"
+      ],
+      [
+        "Internal"
+      ],
+      [
+        "request error"
+      ],
+      [
+        "rpc",
+        "error"
+      ],
+      [
+        "transport",
+        "Error",
+        "while",
+        "dialing"
+      ],
+      [
+        "unavailable"
+      ]
+    ]
+  },
+  {
+    "uuid": "bc7e1bf2-405",
+    "start_time": "2025-06-20T14:10:30Z",
+    "end_time": "2025-06-20T14:34:30Z",
+    "fault_type": "dns error",
+    "fault_category": "dns fault",
+    "root_cause_components": [
+      "checkoutservice",
+      "checkoutservice-2"
+    ],
+    "expected_log_patterns": [
+      [
+        "http.resp.status",
+        "302"
+      ],
+      [
+        "rpc",
+        "error"
+      ],
+      [
+        "transport",
+        "Error",
+        "while",
+        "dialing"
+      ],
+      [
+        "unavailable"
+      ]
+    ]
+  },
+  {
+    "uuid": "a7ed866b-406",
+    "start_time": "2025-06-20T15:10:31Z",
+    "end_time": "2025-06-20T15:30:31Z",
+    "fault_type": "target port misconfig",
+    "fault_category": "misconfiguration",
+    "root_cause_components": [
+      "checkoutservice"
+    ],
+    "expected_log_patterns": [
+      [
+        "http.resp.status",
+        "302"
+      ],
+      [
+        "request error"
+      ],
+      [
+        "rpc",
+        "error"
+      ],
+      [
+        "transport",
+        "Error",
+        "while",
+        "dialing"
+      ],
+      [
+        "unavailable"
+      ]
+    ]
+  },
+  {
+    "uuid": "b7177fa5-409",
+    "start_time": "2025-06-20T18:10:04Z",
+    "end_time": "2025-06-20T18:22:04Z",
+    "fault_type": "network corrupt",
+    "fault_category": "network attack",
+    "root_cause_components": [
+      "cartservice",
+      "redis-cart",
+      "redis-cart-0"
+    ],
+    "expected_log_patterns": [
+      [
+        "FailedPrecondition"
+      ],
+      [
+        "failure"
+      ],
+      [
+        "http.resp.status",
+        "302"
+      ],
+      [
+        "Internal"
+      ],
+      [
+        "request error"
+      ],
+      [
+        "rpc",
+        "error"
+      ],
+      [
+        "timeout"
+      ]
+    ]
+  },
+  {
+    "uuid": "d9eb1e98-410",
+    "start_time": "2025-06-20T19:10:05Z",
+    "end_time": "2025-06-20T19:34:05Z",
+    "fault_type": "node memory stress",
+    "fault_category": "node fault",
+    "root_cause_components": [
+      "aiops-k8s-06"
+    ],
+    "expected_log_patterns": [
+      [
+        "http.resp.status",
+        "302"
+      ]
+    ]
+  },
+  {
+    "uuid": "b4feec3f-413",
+    "start_time": "2025-06-20T22:10:09Z",
+    "end_time": "2025-06-20T22:34:09Z",
+    "fault_type": "target port misconfig",
+    "fault_category": "misconfiguration",
+    "root_cause_components": [
+      "checkoutservice"
+    ],
+    "expected_log_patterns": [
+      [
+        "http.resp.status",
+        "302"
+      ],
+      [
+        "request error"
+      ],
+      [
+        "rpc",
+        "error"
+      ],
+      [
+        "transport",
+        "Error",
+        "while",
+        "dialing"
+      ],
+      [
+        "unavailable"
+      ]
+    ]
+  },
+  {
+    "uuid": "67ca80f6-415",
+    "start_time": "2025-06-21T00:10:10Z",
+    "end_time": "2025-06-21T00:33:10Z",
+    "fault_type": "code error",
+    "fault_category": "erroneous change",
+    "root_cause_components": [
+      "frontend"
+    ],
+    "expected_log_patterns": [
+      [
+        "http.resp.status",
+        "302"
+      ]
+    ]
+  },
+  {
+    "uuid": "ba4ffa4e-416",
+    "start_time": "2025-06-21T01:10:10Z",
+    "end_time": "2025-06-21T01:28:10Z",
+    "fault_type": "pod failure",
+    "fault_category": "pod fault",
+    "root_cause_components": [
+      "tidb-tikv",
+      "tidb-tikv-0"
+    ],
+    "expected_log_patterns": [
+      [
+        "failure"
+      ],
+      [
+        "unavailable"
+      ]
+    ]
+  },
+  {
+    "uuid": "6e08f907-417",
+    "start_time": "2025-06-21T02:10:11Z",
+    "end_time": "2025-06-21T02:33:11Z",
+    "fault_type": "node memory stress",
+    "fault_category": "node fault",
+    "root_cause_components": [
+      "aiops-k8s-08"
+    ],
+    "expected_log_patterns": [
+      [
+        "http.resp.status",
+        "302"
+      ]
+    ]
+  },
+  {
+    "uuid": "11cdd935-418",
+    "start_time": "2025-06-21T03:10:13Z",
+    "end_time": "2025-06-21T03:26:13Z",
+    "fault_type": "code error",
+    "fault_category": "erroneous change",
+    "root_cause_components": [
+      "cartservice"
+    ],
+    "expected_log_patterns": [
+      [
+        "FailedPrecondition"
+      ],
+      [
+        "http.resp.status",
+        "302"
+      ],
+      [
+        "request error"
+      ],
+      [
+        "rpc",
+        "error"
+      ]
+    ]
+  },
+  {
+    "uuid": "9d5bc038-419",
+    "start_time": "2025-06-21T04:10:13Z",
+    "end_time": "2025-06-21T04:33:13Z",
+    "fault_type": "pod failure",
+    "fault_category": "pod fault",
+    "root_cause_components": [
+      "tidb-tikv",
+      "tidb-tikv-0"
+    ],
+    "expected_log_patterns": [
+      [
+        "failure"
+      ],
+      [
+        "unavailable"
+      ]
+    ]
+  },
+  {
+    "uuid": "ac9112a4-420",
+    "start_time": "2025-06-21T05:10:14Z",
+    "end_time": "2025-06-21T05:25:14Z",
+    "fault_type": "code error",
+    "fault_category": "erroneous change",
+    "root_cause_components": [
+      "checkoutservice"
+    ],
+    "expected_log_patterns": [
+      [
+        "context",
+        "canceled"
+      ],
+      [
+        "http.resp.status",
+        "302"
+      ],
+      [
+        "request error"
+      ],
+      [
+        "rpc",
+        "error"
+      ]
+    ]
+  },
+  {
+    "uuid": "1003cbad-421",
+    "start_time": "2025-06-21T06:10:14Z",
+    "end_time": "2025-06-21T06:24:14Z",
+    "fault_type": "network delay",
+    "fault_category": "network attack",
+    "root_cause_components": [
+      "cartservice",
+      "checkoutservice"
+    ],
+    "expected_log_patterns": [
+      [
+        "http.resp.status",
+        "302"
+      ]
+    ]
+  },
+  {
+    "uuid": "e7f160ac-422",
+    "start_time": "2025-06-21T07:10:16Z",
+    "end_time": "2025-06-21T07:20:16Z",
+    "fault_type": "pod failure",
+    "fault_category": "pod fault",
+    "root_cause_components": [
+      "tidb-tikv",
+      "tidb-tikv-0"
+    ],
+    "expected_log_patterns": [
+      [
+        "failure"
+      ],
+      [
+        "unavailable"
+      ]
+    ]
+  },
+  {
+    "uuid": "b1affa2a-424",
+    "start_time": "2025-06-21T09:10:19Z",
+    "end_time": "2025-06-21T09:21:19Z",
+    "fault_type": "node memory stress",
+    "fault_category": "node fault",
+    "root_cause_components": [
+      "aiops-k8s-08"
+    ],
+    "expected_log_patterns": [
+      [
+        "http.resp.status",
+        "302"
+      ]
+    ]
+  },
+  {
+    "uuid": "20af4918-425",
+    "start_time": "2025-06-21T10:10:21Z",
+    "end_time": "2025-06-21T10:35:21Z",
+    "fault_type": "pod failure",
+    "fault_category": "pod fault",
+    "root_cause_components": [
+      "tidb-tikv",
+      "tidb-tikv-0"
+    ],
+    "expected_log_patterns": [
+      [
+        "failure"
+      ],
+      [
+        "unavailable"
+      ]
+    ]
+  },
+  {
+    "uuid": "88f808ff-426",
+    "start_time": "2025-06-21T11:10:22Z",
+    "end_time": "2025-06-21T11:22:22Z",
+    "fault_type": "cpu stress",
+    "fault_category": "stress test",
+    "root_cause_components": [
+      "cartservice"
+    ],
+    "expected_log_patterns": [
+      [
+        "http.resp.status",
+        "302"
+      ]
+    ]
+  },
+  {
+    "uuid": "96fed9c7-427",
+    "start_time": "2025-06-21T12:10:24Z",
+    "end_time": "2025-06-21T12:23:24Z",
+    "fault_type": "network loss",
+    "fault_category": "network attack",
+    "root_cause_components": [
+      "checkoutservice",
+      "paymentservice"
+    ],
+    "expected_log_patterns": [
+      [
+        "context",
+        "canceled"
+      ],
+      [
+        "http.resp.status",
+        "302"
+      ],
+      [
+        "Internal"
+      ],
+      [
+        "request error"
+      ],
+      [
+        "rpc",
+        "error"
+      ],
+      [
+        "timeout"
+      ],
+      [
+        "transport",
+        "Error",
+        "while",
+        "dialing"
+      ],
+      [
+        "unavailable"
+      ]
+    ]
+  },
+  {
+    "uuid": "83d06197-428",
+    "start_time": "2025-06-21T13:10:29Z",
+    "end_time": "2025-06-21T13:21:29Z",
+    "fault_type": "pod failure",
+    "fault_category": "pod fault",
+    "root_cause_components": [
+      "tidb-tikv",
+      "tidb-tikv-0"
+    ],
+    "expected_log_patterns": [
+      [
+        "failure"
+      ],
+      [
+        "unavailable"
+      ]
+    ]
+  },
+  {
+    "uuid": "6739d066-429",
+    "start_time": "2025-06-21T14:10:30Z",
+    "end_time": "2025-06-21T14:29:30Z",
+    "fault_type": "network loss",
+    "fault_category": "network attack",
+    "root_cause_components": [
+      "checkoutservice",
+      "paymentservice"
+    ],
+    "expected_log_patterns": [
+      [
+        "http.resp.status",
+        "302"
+      ],
+      [
+        "Internal"
+      ],
+      [
+        "request error"
+      ],
+      [
+        "rpc",
+        "error"
+      ],
+      [
+        "timeout"
+      ],
+      [
+        "transport",
+        "Error",
+        "while",
+        "dialing"
+      ],
+      [
+        "unavailable"
+      ]
+    ]
+  },
+  {
+    "uuid": "25ce9c41-430",
+    "start_time": "2025-06-21T15:10:32Z",
+    "end_time": "2025-06-21T15:32:32Z",
+    "fault_type": "network loss",
+    "fault_category": "network attack",
+    "root_cause_components": [
+      "adservice",
+      "frontend"
+    ],
+    "expected_log_patterns": [
+      [
+        "deadlineexceeded"
+      ],
+      [
+        "http.resp.status",
+        "302"
+      ],
+      [
+        "rpc",
+        "error"
+      ],
+      [
+        "timeout"
+      ],
+      [
+        "transport",
+        "Error",
+        "while",
+        "dialing"
+      ],
+      [
+        "unavailable"
+      ]
+    ]
+  },
+  {
+    "uuid": "f625bd45-479",
+    "start_time": "2025-06-23T16:10:01Z",
+    "end_time": "2025-06-23T16:22:01Z",
+    "fault_type": "pod failure",
+    "fault_category": "pod fault",
+    "root_cause_components": [
+      "tidb-tikv",
+      "tidb-tikv-0"
+    ],
+    "expected_log_patterns": [
+      [
+        "failure"
+      ],
+      [
+        "unavailable"
+      ]
+    ]
+  },
+  {
+    "uuid": "e1b52df0-482",
+    "start_time": "2025-06-23T19:10:05Z",
+    "end_time": "2025-06-23T19:24:05Z",
+    "fault_type": "code error",
+    "fault_category": "erroneous change",
+    "root_cause_components": [
+      "cartservice"
+    ],
+    "expected_log_patterns": [
+      [
+        "FailedPrecondition"
+      ],
+      [
+        "http.resp.status",
+        "302"
+      ],
+      [
+        "request error"
+      ],
+      [
+        "rpc",
+        "error"
+      ]
+    ]
+  },
+  {
+    "uuid": "dac96ecf-483",
+    "start_time": "2025-06-23T20:10:06Z",
+    "end_time": "2025-06-23T20:21:06Z",
+    "fault_type": "memory stress",
+    "fault_category": "stress test",
+    "root_cause_components": [
+      "adservice",
+      "adservice-1"
+    ],
+    "expected_log_patterns": [
+      [
+        "http.resp.status",
+        "302"
+      ]
+    ]
+  },
+  {
+    "uuid": "328b39df-485",
+    "start_time": "2025-06-23T22:10:08Z",
+    "end_time": "2025-06-23T22:24:08Z",
+    "fault_type": "dns error",
+    "fault_category": "dns fault",
+    "root_cause_components": [
+      "checkoutservice"
+    ],
+    "expected_log_patterns": [
+      [
+        "http.resp.status",
+        "302"
+      ]
+    ]
+  },
+  {
+    "uuid": "192019ef-486",
+    "start_time": "2025-06-23T23:10:09Z",
+    "end_time": "2025-06-23T23:26:09Z",
+    "fault_type": "cpu stress",
+    "fault_category": "stress test",
+    "root_cause_components": [
+      "currencyservice",
+      "currencyservice-1"
+    ],
+    "expected_log_patterns": [
+      [
+        "http.resp.status",
+        "302"
+      ]
+    ]
+  },
+  {
+    "uuid": "45c7bf97-487",
+    "start_time": "2025-06-24T00:10:11Z",
+    "end_time": "2025-06-24T00:27:11Z",
+    "fault_type": "code error",
+    "fault_category": "erroneous change",
+    "root_cause_components": [
+      "productcatalogservice"
+    ],
+    "expected_log_patterns": [
+      [
+        "context",
+        "canceled"
+      ],
+      [
+        "http.resp.status",
+        "302"
+      ],
+      [
+        "request error"
+      ],
+      [
+        "rpc",
+        "error"
+      ],
+      [
+        "timeout"
+      ],
+      [
+        "unavailable"
+      ]
+    ]
+  },
+  {
+    "uuid": "01cf75fe-488",
+    "start_time": "2025-06-24T01:10:11Z",
+    "end_time": "2025-06-24T01:27:11Z",
+    "fault_type": "node disk fill",
+    "fault_category": "node fault",
+    "root_cause_components": [
+      "aiops-k8s-08"
+    ],
+    "expected_log_patterns": [
+      [
+        "http.resp.status",
+        "302"
+      ]
+    ]
+  },
+  {
+    "uuid": "a0d5329b-489",
+    "start_time": "2025-06-24T02:10:12Z",
+    "end_time": "2025-06-24T02:26:12Z",
+    "fault_type": "dns error",
+    "fault_category": "dns fault",
+    "root_cause_components": [
+      "checkoutservice"
+    ],
+    "expected_log_patterns": [
+      [
+        "http.resp.status",
+        "302"
+      ]
+    ]
+  },
+  {
+    "uuid": "1c4a277a-491",
+    "start_time": "2025-06-24T04:10:16Z",
+    "end_time": "2025-06-24T04:31:16Z",
+    "fault_type": "network delay",
+    "fault_category": "network attack",
+    "root_cause_components": [
+      "productcatalogservice",
+      "recommendationservice"
+    ],
+    "expected_log_patterns": [
+      [
+        "http.resp.status",
+        "302"
+      ]
+    ]
+  },
+  {
+    "uuid": "d3691ad9-492",
+    "start_time": "2025-06-24T05:10:17Z",
+    "end_time": "2025-06-24T05:31:17Z",
+    "fault_type": "node cpu stress",
+    "fault_category": "node fault",
+    "root_cause_components": [
+      "aiops-k8s-04"
+    ],
+    "expected_log_patterns": [
+      [
+        "http.resp.status",
+        "302"
+      ]
+    ]
+  },
+  {
+    "uuid": "9ce187ea-493",
+    "start_time": "2025-06-24T06:10:34Z",
+    "end_time": "2025-06-24T06:23:34Z",
+    "fault_type": "pod failure",
+    "fault_category": "pod fault",
+    "root_cause_components": [
+      "tidb-tikv",
+      "tidb-tikv-0"
+    ],
+    "expected_log_patterns": [
+      [
+        "failure"
+      ]
+    ]
+  },
+  {
+    "uuid": "17ed37a5-494",
+    "start_time": "2025-06-24T07:10:36Z",
+    "end_time": "2025-06-24T07:30:36Z",
+    "fault_type": "pod failure",
+    "fault_category": "pod fault",
+    "root_cause_components": [
+      "tidb-tikv",
+      "tidb-tikv-0"
+    ],
+    "expected_log_patterns": [
+      [
+        "failure"
+      ]
+    ]
+  },
+  {
+    "uuid": "523bb271-495",
+    "start_time": "2025-06-24T08:10:37Z",
+    "end_time": "2025-06-24T08:25:37Z",
+    "fault_type": "target port misconfig",
+    "fault_category": "misconfiguration",
+    "root_cause_components": [
+      "adservice"
+    ],
+    "expected_log_patterns": [
+      [
+        "http.resp.status",
+        "302"
+      ],
+      [
+        "rpc",
+        "error"
+      ],
+      [
+        "transport",
+        "Error",
+        "while",
+        "dialing"
+      ],
+      [
+        "unavailable"
+      ]
+    ]
+  },
+  {
+    "uuid": "7db04792-496",
+    "start_time": "2025-06-24T09:10:37Z",
+    "end_time": "2025-06-24T09:31:37Z",
+    "fault_type": "pod failure",
+    "fault_category": "pod fault",
+    "root_cause_components": [
+      "tidb-tikv",
+      "tidb-tikv-0"
+    ],
+    "expected_log_patterns": [
+      [
+        "failure"
+      ]
+    ]
+  },
+  {
+    "uuid": "6d1ad486-497",
+    "start_time": "2025-06-24T10:10:39Z",
+    "end_time": "2025-06-24T10:22:39Z",
+    "fault_type": "node cpu stress",
+    "fault_category": "node fault",
+    "root_cause_components": [
+      "aiops-k8s-08"
+    ],
+    "expected_log_patterns": [
+      [
+        "http.resp.status",
+        "302"
+      ]
+    ]
+  },
+  {
+    "uuid": "6a9c8dc7-498",
+    "start_time": "2025-06-24T11:10:40Z",
+    "end_time": "2025-06-24T11:30:40Z",
+    "fault_type": "node disk fill",
+    "fault_category": "node fault",
+    "root_cause_components": [
+      "aiops-k8s-06"
+    ],
+    "expected_log_patterns": [
+      [
+        "http.resp.status",
+        "302"
+      ]
+    ]
+  },
+  {
+    "uuid": "c4b46577-499",
+    "start_time": "2025-06-24T12:10:42Z",
+    "end_time": "2025-06-24T12:25:42Z",
+    "fault_type": "dns error",
+    "fault_category": "dns fault",
+    "root_cause_components": [
+      "checkoutservice"
+    ],
+    "expected_log_patterns": [
+      [
+        "http.resp.status",
+        "302"
+      ],
+      [
+        "rpc",
+        "error"
+      ],
+      [
+        "transport",
+        "Error",
+        "while",
+        "dialing"
+      ],
+      [
+        "unavailable"
+      ]
+    ]
+  },
+  {
+    "uuid": "5fb39f4b-500",
+    "start_time": "2025-06-24T13:10:43Z",
+    "end_time": "2025-06-24T13:31:43Z",
+    "fault_type": "pod failure",
+    "fault_category": "pod fault",
+    "root_cause_components": [
+      "tidb-tidb",
+      "tidb-tidb-0"
+    ],
+    "expected_log_patterns": [
+      [
+        "failure"
+      ]
+    ]
+  },
+  {
+    "uuid": "2ff9d8a6-501",
+    "start_time": "2025-06-24T14:10:44Z",
+    "end_time": "2025-06-24T14:33:44Z",
+    "fault_type": "node memory stress",
+    "fault_category": "node fault",
+    "root_cause_components": [
+      "aiops-k8s-06"
+    ],
+    "expected_log_patterns": [
+      [
+        "context",
+        "canceled"
+      ],
+      [
+        "http.resp.status",
+        "302"
+      ],
+      [
+        "request error"
+      ],
+      [
+        "rpc",
+        "error"
+      ]
+    ]
+  },
+  {
+    "uuid": "959cfb67-502",
+    "start_time": "2025-06-24T15:10:47Z",
+    "end_time": "2025-06-24T15:23:47Z",
+    "fault_type": "target port misconfig",
+    "fault_category": "misconfiguration",
+    "root_cause_components": [
+      "currencyservice"
+    ],
+    "expected_log_patterns": [
+      [
+        "http.resp.status",
+        "302"
+      ],
+      [
+        "Internal"
+      ],
+      [
+        "request error"
+      ],
+      [
+        "rpc",
+        "error"
+      ],
+      [
+        "transport",
+        "Error",
+        "while",
+        "dialing"
+      ],
+      [
+        "unavailable"
+      ]
+    ]
+  },
+  {
+    "uuid": "ac8cf6cb-553",
+    "start_time": "2025-06-26T18:10:05Z",
+    "end_time": "2025-06-26T18:26:05Z",
+    "fault_type": "dns error",
+    "fault_category": "dns fault",
+    "root_cause_components": [
+      "checkoutservice",
+      "checkoutservice-2"
+    ],
+    "expected_log_patterns": [
+      [
+        "http.resp.status",
+        "302"
+      ],
+      [
+        "Internal"
+      ],
+      [
+        "request error"
+      ],
+      [
+        "rpc",
+        "error"
+      ]
+    ]
+  },
+  {
+    "uuid": "3d3f68e9-554",
+    "start_time": "2025-06-26T19:10:10Z",
+    "end_time": "2025-06-26T19:24:10Z",
+    "fault_type": "node memory stress",
+    "fault_category": "node fault",
+    "root_cause_components": [
+      "aiops-k8s-08"
+    ],
+    "expected_log_patterns": [
+      [
+        "http.resp.status",
+        "302"
+      ]
+    ]
+  },
+  {
+    "uuid": "1ae8a5c3-555",
+    "start_time": "2025-06-26T20:10:11Z",
+    "end_time": "2025-06-26T20:34:11Z",
+    "fault_type": "pod failure",
+    "fault_category": "pod fault",
+    "root_cause_components": [
+      "tidb-tidb",
+      "tidb-tidb-0"
+    ],
+    "expected_log_patterns": [
+      [
+        "failure"
+      ]
+    ]
+  },
+  {
+    "uuid": "a9a3df0e-557",
+    "start_time": "2025-06-26T22:10:14Z",
+    "end_time": "2025-06-26T22:34:14Z",
+    "fault_type": "node disk fill",
+    "fault_category": "node fault",
+    "root_cause_components": [
+      "aiops-k8s-08"
+    ],
+    "expected_log_patterns": [
+      [
+        "http.resp.status",
+        "302"
+      ]
+    ]
+  },
+  {
+    "uuid": "20f9c3bc-558",
+    "start_time": "2025-06-26T23:10:16Z",
+    "end_time": "2025-06-26T23:34:16Z",
+    "fault_type": "code error",
+    "fault_category": "erroneous change",
+    "root_cause_components": [
+      "currencyservice"
+    ],
+    "expected_log_patterns": [
+      [
+        "context",
+        "canceled"
+      ],
+      [
+        "http.resp.status",
+        "302"
+      ],
+      [
+        "request error"
+      ],
+      [
+        "rpc",
+        "error"
+      ]
+    ]
+  },
+  {
+    "uuid": "4b98f078-560",
+    "start_time": "2025-06-27T01:10:19Z",
+    "end_time": "2025-06-27T01:20:19Z",
+    "fault_type": "network corrupt",
+    "fault_category": "network attack",
+    "root_cause_components": [
+      "checkoutservice",
+      "emailservice"
+    ],
+    "expected_log_patterns": [
+      [
+        "context",
+        "canceled"
+      ],
+      [
+        "http.resp.status",
+        "302"
+      ],
+      [
+        "request error"
+      ],
+      [
+        "rpc",
+        "error"
+      ],
+      [
+        "timeout"
+      ],
+      [
+        "transport",
+        "Error",
+        "while",
+        "dialing"
+      ],
+      [
+        "unavailable"
+      ]
+    ]
+  },
+  {
+    "uuid": "5934fe6f-561",
+    "start_time": "2025-06-27T02:10:21Z",
+    "end_time": "2025-06-27T02:23:21Z",
+    "fault_type": "code error",
+    "fault_category": "erroneous change",
+    "root_cause_components": [
+      "frontend"
+    ],
+    "expected_log_patterns": [
+      [
+        "http.resp.status",
+        "302"
+      ]
+    ]
+  },
+  {
+    "uuid": "6637fe70-563",
+    "start_time": "2025-06-27T04:10:22Z",
+    "end_time": "2025-06-27T04:28:22Z",
+    "fault_type": "cpu stress",
+    "fault_category": "stress test",
+    "root_cause_components": [
+      "currencyservice",
+      "currencyservice-1"
+    ],
+    "expected_log_patterns": [
+      [
+        "http.resp.status",
+        "302"
+      ]
+    ]
+  },
+  {
+    "uuid": "62e9d294-564",
+    "start_time": "2025-06-27T05:10:24Z",
+    "end_time": "2025-06-27T05:21:24Z",
+    "fault_type": "network delay",
+    "fault_category": "network attack",
+    "root_cause_components": [
+      "checkoutservice",
+      "currencyservice"
+    ],
+    "expected_log_patterns": [
+      [
+        "http.resp.status",
+        "302"
+      ]
+    ]
+  },
+  {
+    "uuid": "cbd1f06b-565",
+    "start_time": "2025-06-27T06:10:28Z",
+    "end_time": "2025-06-27T06:28:28Z",
+    "fault_type": "dns error",
+    "fault_category": "dns fault",
+    "root_cause_components": [
+      "checkoutservice"
+    ],
+    "expected_log_patterns": [
+      [
+        "failure"
+      ],
+      [
+        "http.resp.status",
+        "302"
+      ],
+      [
+        "Internal"
+      ],
+      [
+        "request error"
+      ],
+      [
+        "rpc",
+        "error"
+      ],
+      [
+        "transport",
+        "Error",
+        "while",
+        "dialing"
+      ],
+      [
+        "unavailable"
+      ]
+    ]
+  },
+  {
+    "uuid": "c9ba0b22-566",
+    "start_time": "2025-06-27T07:10:29Z",
+    "end_time": "2025-06-27T07:28:29Z",
+    "fault_type": "network loss",
+    "fault_category": "network attack",
+    "root_cause_components": [
+      "currencyservice",
+      "frontend"
+    ],
+    "expected_log_patterns": [
+      [
+        "context",
+        "canceled"
+      ],
+      [
+        "http.resp.status",
+        "302"
+      ],
+      [
+        "request error"
+      ],
+      [
+        "rpc",
+        "error"
+      ],
+      [
+        "timeout"
+      ],
+      [
+        "transport",
+        "Error",
+        "while",
+        "dialing"
+      ],
+      [
+        "unavailable"
+      ]
+    ]
+  },
+  {
+    "uuid": "bd4bafd7-567",
+    "start_time": "2025-06-27T08:10:30Z",
+    "end_time": "2025-06-27T08:31:30Z",
+    "fault_type": "node memory stress",
+    "fault_category": "node fault",
+    "root_cause_components": [
+      "aiops-k8s-08"
+    ],
+    "expected_log_patterns": [
+      [
+        "http.resp.status",
+        "302"
+      ]
+    ]
+  },
+  {
+    "uuid": "bd9203a8-568",
+    "start_time": "2025-06-27T09:10:32Z",
+    "end_time": "2025-06-27T09:33:32Z",
+    "fault_type": "network delay",
+    "fault_category": "network attack",
+    "root_cause_components": [
+      "cartservice",
+      "checkoutservice"
+    ],
+    "expected_log_patterns": [
+      [
+        "http.resp.status",
+        "302"
+      ]
+    ]
+  },
+  {
+    "uuid": "aceeda23-570",
+    "start_time": "2025-06-27T11:10:35Z",
+    "end_time": "2025-06-27T11:21:35Z",
+    "fault_type": "network corrupt",
+    "fault_category": "network attack",
+    "root_cause_components": [
+      "checkoutservice",
+      "paymentservice"
+    ],
+    "expected_log_patterns": [
+      [
+        "context",
+        "canceled"
+      ],
+      [
+        "http.resp.status",
+        "302"
+      ],
+      [
+        "Internal"
+      ],
+      [
+        "request error"
+      ],
+      [
+        "rpc",
+        "error"
+      ],
+      [
+        "timeout"
+      ],
+      [
+        "transport",
+        "Error",
+        "while",
+        "dialing"
+      ],
+      [
+        "unavailable"
+      ]
+    ]
+  },
+  {
+    "uuid": "238afe01-573",
+    "start_time": "2025-06-27T14:10:41Z",
+    "end_time": "2025-06-27T14:30:41Z",
+    "fault_type": "dns error",
+    "fault_category": "dns fault",
+    "root_cause_components": [
+      "checkoutservice",
+      "checkoutservice-0"
+    ],
+    "expected_log_patterns": [
+      [
+        "failure"
+      ],
+      [
+        "http.resp.status",
+        "302"
+      ],
+      [
+        "Internal"
+      ],
+      [
+        "request error"
+      ],
+      [
+        "rpc",
+        "error"
+      ],
+      [
+        "transport",
+        "Error",
+        "while",
+        "dialing"
+      ],
+      [
+        "unavailable"
+      ]
+    ]
+  },
+  {
+    "uuid": "33492fcd-575",
+    "start_time": "2025-06-27T16:10:01Z",
+    "end_time": "2025-06-27T16:35:01Z",
+    "fault_type": "cpu stress",
+    "fault_category": "stress test",
+    "root_cause_components": [
+      "currencyservice"
+    ],
+    "expected_log_patterns": [
+      [
+        "http.resp.status",
+        "302"
+      ]
+    ]
+  },
+  {
+    "uuid": "7d23b182-577",
+    "start_time": "2025-06-27T18:10:04Z",
+    "end_time": "2025-06-27T18:34:04Z",
+    "fault_type": "memory stress",
+    "fault_category": "stress test",
+    "root_cause_components": [
+      "checkoutservice"
+    ],
+    "expected_log_patterns": [
+      [
+        "http.resp.status",
+        "302"
+      ]
+    ]
+  },
+  {
+    "uuid": "8ce0cd7e-578",
+    "start_time": "2025-06-27T19:10:05Z",
+    "end_time": "2025-06-27T19:23:05Z",
+    "fault_type": "pod failure",
+    "fault_category": "pod fault",
+    "root_cause_components": [
+      "tidb-pd",
+      "tidb-pd-0"
+    ],
+    "expected_log_patterns": [
+      [
+        "failure"
+      ],
+      [
+        "timeout"
+      ]
+    ]
+  },
+  {
+    "uuid": "c9fbd527-582",
+    "start_time": "2025-06-27T23:10:09Z",
+    "end_time": "2025-06-27T23:26:09Z",
+    "fault_type": "code error",
+    "fault_category": "erroneous change",
+    "root_cause_components": [
+      "frontend"
+    ],
+    "expected_log_patterns": [
+      [
+        "http.resp.status",
+        "302"
+      ]
+    ]
+  },
+  {
+    "uuid": "cc62b887-583",
+    "start_time": "2025-06-28T00:10:09Z",
+    "end_time": "2025-06-28T00:24:09Z",
+    "fault_type": "pod failure",
+    "fault_category": "pod fault",
+    "root_cause_components": [
+      "tidb-tikv",
+      "tidb-tikv-0"
+    ],
+    "expected_log_patterns": [
+      [
+        "failure"
+      ],
+      [
+        "unavailable"
+      ]
+    ]
+  },
+  {
+    "uuid": "d6b961d4-587",
+    "start_time": "2025-06-28T04:10:14Z",
+    "end_time": "2025-06-28T04:29:14Z",
+    "fault_type": "dns error",
+    "fault_category": "dns fault",
+    "root_cause_components": [
+      "checkoutservice",
+      "checkoutservice-2"
+    ],
+    "expected_log_patterns": [
+      [
+        "http.resp.status",
+        "302"
+      ]
+    ]
+  },
+  {
+    "uuid": "bb585575-589",
+    "start_time": "2025-06-28T06:10:20Z",
+    "end_time": "2025-06-28T06:29:20Z",
+    "fault_type": "node cpu stress",
+    "fault_category": "node fault",
+    "root_cause_components": [
+      "aiops-k8s-08"
+    ],
+    "expected_log_patterns": [
+      [
+        "http.resp.status",
+        "302"
+      ]
+    ]
+  },
+  {
+    "uuid": "6dee3cf4-590",
+    "start_time": "2025-06-28T07:10:22Z",
+    "end_time": "2025-06-28T07:31:22Z",
+    "fault_type": "dns error",
+    "fault_category": "dns fault",
+    "root_cause_components": [
+      "checkoutservice",
+      "checkoutservice-1"
+    ],
+    "expected_log_patterns": [
+      [
+        "http.resp.status",
+        "302"
+      ]
+    ]
+  },
+  {
+    "uuid": "8c1e905b-592",
+    "start_time": "2025-06-28T09:10:25Z",
+    "end_time": "2025-06-28T09:26:25Z",
+    "fault_type": "pod failure",
+    "fault_category": "pod fault",
+    "root_cause_components": [
+      "tidb-tidb",
+      "tidb-tidb-0"
+    ],
+    "expected_log_patterns": [
+      [
+        "failure"
+      ]
+    ]
+  },
+  {
+    "uuid": "cc8e0450-593",
+    "start_time": "2025-06-28T10:10:26Z",
+    "end_time": "2025-06-28T10:27:26Z",
+    "fault_type": "node disk fill",
+    "fault_category": "node fault",
+    "root_cause_components": [
+      "aiops-k8s-08"
+    ],
+    "expected_log_patterns": [
+      [
+        "http.resp.status",
+        "302"
+      ]
+    ]
+  }
+]
