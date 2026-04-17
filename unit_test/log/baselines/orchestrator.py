@@ -175,9 +175,23 @@ def main() -> None:
     parser.add_argument("--normal-window-minutes", type=int, default=30)
     parser.add_argument("--max-normal-lines", type=int, default=800)
     parser.add_argument("--seed", type=int, default=42)
+    parser.add_argument(
+        "--quiet", 
+        action="store_true",
+        help="Reduce verbose 'Searching records' messages (recommended for large runs)"
+    )
     args = parser.parse_args()
 
     logging.basicConfig(level=logging.INFO, format="%(message)s")
+
+    # Reduce noise from parquet search (very verbose when many time windows)
+    log_level = logging.WARNING if getattr(args, "quiet", False) else logging.INFO
+    for noisy_logger in ("exp.utils.input", "exp.agent.log", "exp.agent.trace"):
+        logging.getLogger(noisy_logger).setLevel(log_level)
+
+    # Reduce noise from parquet search (very verbose when many time windows)
+    for noisy_logger in ("exp.utils.input", "exp.agent.log", "exp.agent.trace"):
+        logging.getLogger(noisy_logger).setLevel(logging.WARNING)
 
     orchestrator = BaselineOrchestrator(
         dataset_root=args.dataset_root,

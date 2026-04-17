@@ -32,10 +32,10 @@ baselines/
 
 ```bash
 # 运行所有 baseline 并生成最新 summary（推荐）
-python -m unit_test.log.baselines.orchestrator --dataset-root dataset
+python -m unit_test.log.baselines.orchestrator --dataset-root dataset --quiet
 
 # 只跑特定 baseline（更快）
-python -m unit_test.log.baselines.orchestrator --baselines neural_log,log_agent --limit-uuids 50
+python -m unit_test.log.baselines.orchestrator --baselines neural_log,log_agent --limit-uuids 50 --quiet
 
 # 查看帮助
 python -m unit_test.log.baselines.orchestrator --help

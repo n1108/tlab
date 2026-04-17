@@ -4,7 +4,6 @@ LogAgent baseline wrapper for orchestrator.
 from __future__ import annotations
 
 from exp.agent.log import LogAgent
-from unit_test.log.baselines.log_summary_common import summarize_logagent
 
 
 class LogAgentBaseline:
