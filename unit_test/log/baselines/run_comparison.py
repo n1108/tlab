@@ -1,19 +1,14 @@
 """
-逐 uuid 的实时检测对比：LogAgent vs LightAD 风格 KNN / DT / SLFN。
+**Deprecated / Optional** - Baseline comparison report.
 
-对每个故障 uuid：
-- 正常模式窗口：故障前 30 分钟 + 故障后 30 分钟（若存在）
-- 检测窗口：故障时间段本身
-- LogAgent：保持原实现（前 30 分钟 baseline 对比）
-- KNN/DT/SLFN：仅用“正常窗口”训练（实时/近实时设定）
-  - 为了继续使用 LightAD 的二分类器，构造合成异常样本（打乱正常向量列）作为负类
-  - 在故障窗日志上预测为异常(label=1)的文本参与关键词召回评分
+**Recommendation**: Use `orchestrator.py` (the single entrypoint) to run all baselines and generate `results/log_summary.txt` for JudgeAgent.
+
+This script duplicates much of the logic in orchestrator.py and is kept only for manual detailed comparison if needed.
 """
 from __future__ import annotations
 
 import argparse
 import importlib.util
-import json
 import logging
 import random
 import sys
@@ -33,11 +28,11 @@ from sklearn.neural_network import MLPClassifier
 from sklearn.tree import DecisionTreeClassifier
 
 from unit_test.log.baselines.loader import load_window_lines
+from unit_test.log.input_cases import load_input_json_cases
 
 logger = logging.getLogger(__name__)
 
 PROJECT_ROOT = _ROOT
-DATASET_JSON = PROJECT_ROOT / "unit_test/log/log_unit_test_dataset.json"
 REPORT_PATH = PROJECT_ROOT / "unit_test/log/results/baseline_comparison_report.md"
 
 
@@ -152,8 +147,7 @@ def main() -> None:
     for name in ("exp", "exp.utils.input", "exp.agent.log", "drain3"):
         logging.getLogger(name).setLevel(logging.WARNING)
 
-    with DATASET_JSON.open(encoding="utf-8") as f:
-        cases: list[dict] = json.load(f)
+    cases = load_input_json_cases(PROJECT_ROOT)
     if args.limit_uuids > 0:
         cases = cases[: args.limit_uuids]
 
@@ -171,10 +165,11 @@ def main() -> None:
 
     for i, item in enumerate(cases, start=1):
         uuid = str(item.get("uuid", ""))
-        patterns = item.get("expected_log_patterns") or []
-        components = set(str(x) for x in item.get("root_cause_components", []) if x)
+        patterns: list[list[str]] = []
+        components: set[str] = set()
 
-        if not patterns or not components:
+        if not item.get("parse_ok", True):
+            skipped_uuids += 1
             continue
 
         try:
@@ -271,16 +266,18 @@ def main() -> None:
     lines.append(f"生成时间: {gen_time}\n\n")
     lines.append("## 设置\n\n")
     ds_desc = f"前 {len(cases)} 条" if args.limit_uuids > 0 else f"全量 {len(cases)} 条"
-    lines.append(f"- **数据集**: `log_unit_test_dataset.json`，{ds_desc}\n")
+    lines.append(f"- **数据集**: `dataset/input.json`（时间窗由描述解析），{ds_desc}\n")
     lines.append(f"- **正常窗口**: 每个 uuid 的故障前后各 {args.normal_window_minutes} 分钟（排除故障窗）\n")
-    lines.append("- **检测目标**: 故障窗内实时识别异常日志，再按根因组件关键词序列计召回\n")
+    lines.append(
+        "- **关键词召回**: input-only 模式下无期望模式，命中/期望恒为 0/0；仍报告各方法耗时与建模流程\n"
+    )
     lines.append(f"- **有效 uuid 数**: {used_uuids}（样本不足/空窗跳过 {skipped_uuids}）\n")
     lines.append(f"- **Parquet 根目录**: `{args.dataset_root.resolve()}`\n\n")
 
     lines.append("## 方法对齐说明\n\n")
     lines.append("- **LogAgent**: 保持原仓库规则（前 30 分钟基线 vs 故障窗）。\n")
     lines.append("- **KNN/DT/SLFN**: 每个 uuid 独立建模，仅用该 uuid 正常窗训练；为复用 LightAD 二分类器，使用列打乱构造伪异常类。\n")
-    lines.append("- **评分**: 与 `evaluate_log_agent.py` 一致，统计关键词序列召回。\n\n")
+    lines.append("- **评分**: 无标注关键词时召回表分母为 0；若需模式分须使用带标签的数据集（本仓库 log 流程已禁用）。\n\n")
 
     lines.append("## 结果\n\n")
     lines.append("| 方法 | 命中/期望模式 | 召回率 | 累计耗时(秒) |\n")
@@ -298,7 +295,7 @@ def main() -> None:
 
     lines.append("\n## 说明\n\n")
     lines.append("- 该对比强调**每个故障独立、邻近时间窗建模**，避免跨 uuid 离线训练信息泄漏。\n")
-    lines.append("- 部分小时 parquet 缺失会导致相应用例计入分母但难以命中。\n")
+    lines.append("- 部分小时 parquet 缺失会导致跳过或空窗。\n")
 
     args.output_md.parent.mkdir(parents=True, exist_ok=True)
     with args.output_md.open("w", encoding="utf-8") as f:

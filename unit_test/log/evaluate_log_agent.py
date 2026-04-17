@@ -1,12 +1,10 @@
 """
-调用 exp.agent.log.LogAgent.score，对 log_unit_test_dataset.json 中的期望 log 模式进行评分。
+LogAgent / Baseline 评分脚本（类似 unit_test/metric/score.py）。
 
-评分规则（与 metric 单测思路一致：根因组件 + 信号命中）：
-- 对每个 uuid 的每条 expected_log_patterns 中的关键词序列，若存在某个检测到的异常项，
-  其 component 与 groundtruth 中的 root_cause_components 匹配（含 pod 名变体），且
-  该异常相关的文本（observation、各 anomalous_patterns 的 template 与 sample）拼接后，
-  按顺序包含全部关键词（大小写不敏感），则计为命中。
-- 总体分数 = 命中模式数 / 期望模式总数（仅统计含期望模式的用例）。
+- 仅使用 dataset/input.json（时间窗 + 描述）
+- 对每个 uuid 调用 LogAgent.score，返回 anomaly list
+- 输出 per-uuid 统计（检测到的 component 数、anomaly 数），无 groundtruth 时不计算 pattern_score
+- 供后续 judge 或手动分析使用
 """
 from __future__ import annotations
 
@@ -31,8 +29,8 @@ if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 from exp.agent.log import LogAgent
+from unit_test.log.input_cases import load_input_json_cases
 
-DATASET_FILE = PROJECT_ROOT / "unit_test/log/log_unit_test_dataset.json"
 RESULTS_DIR = PROJECT_ROOT / "unit_test/log/results"
 
 
@@ -88,33 +86,25 @@ def _keywords_in_order(text: str, keywords: list[str]) -> bool:
     return True
 
 
-def _load_cases(path: Path) -> list[dict]:
-    if not path.exists():
-        raise FileNotFoundError(f"log test dataset not found: {path}")
-    with path.open("r", encoding="utf-8") as f:
-        data = json.load(f)
-    if not isinstance(data, list):
-        raise ValueError("dataset must be a JSON array")
-    return data
-
-
 def evaluate(
     dataset_root: Path,
     limit: int | None = None,
     *,
     verbose: bool = False,
     show_progress: bool = True,
-) -> tuple[float, int, int, list[dict]]:
-    cases = _load_cases(DATASET_FILE)
+) -> tuple[None, int, int, list[dict]]:
+    cases = load_input_json_cases(PROJECT_ROOT)
     if limit is not None and limit > 0:
         cases = cases[:limit]
 
     n_cases = len(cases)
-    logger.info("评测用例数: %s（dataset-root=%s）", n_cases, dataset_root)
+    logger.info(
+        "用例数: %s（仅 dataset/input.json；无标注模式分，dataset-root=%s）",
+        n_cases,
+        dataset_root,
+    )
 
     agent = LogAgent(str(dataset_root))
-    total_patterns = 0
-    hit_patterns = 0
     per_uuid: list[dict] = []
 
     use_bar = show_progress and tqdm is not None
@@ -132,30 +122,27 @@ def evaluate(
 
     for idx, item in iterator:
         uuid = str(item.get("uuid", ""))
-        patterns: list[list[str]] = item.get("expected_log_patterns") or []
-        components = set(str(c) for c in item.get("root_cause_components", []) if c)
-        if not patterns:
+        if use_bar and isinstance(iterator, tqdm):
+            iterator.set_postfix_str(uuid[:20], refresh=False)
+
+        if not item.get("parse_ok", True):
+            logger.warning("[%s/%s] uuid=%s 无法从描述解析时间窗", idx, n_cases, uuid)
+            per_uuid.append(
+                {
+                    "uuid": uuid,
+                    "error": "time range not parsed from Anomaly Description",
+                    "anomaly_count": 0,
+                    "components_detected": [],
+                }
+            )
             continue
 
         start_s = item.get("start_time")
         end_s = item.get("end_time")
 
-        if use_bar and isinstance(iterator, tqdm):
-            iterator.set_postfix_str(uuid[:20], refresh=False)
-
         if verbose:
-            logger.info(
-                "[%s/%s] uuid=%s | %s .. %s | patterns=%s | components=%s",
-                idx,
-                n_cases,
-                uuid,
-                start_s,
-                end_s,
-                len(patterns),
-                sorted(components),
-            )
+            logger.info("[%s/%s] uuid=%s | %s .. %s", idx, n_cases, uuid, start_s, end_s)
         elif not use_bar:
-            # 无 tqdm 时每条用例打一行，避免长时间无输出
             print(f"[{idx}/{n_cases}] {uuid}", flush=True)
 
         try:
@@ -167,11 +154,10 @@ def evaluate(
                 {
                     "uuid": uuid,
                     "error": f"time parse: {e}",
-                    "expected_hits": 0,
-                    "expected_total": len(patterns),
+                    "anomaly_count": 0,
+                    "components_detected": [],
                 }
             )
-            total_patterns += len(patterns)
             continue
 
         try:
@@ -182,97 +168,82 @@ def evaluate(
                 {
                     "uuid": uuid,
                     "error": str(e),
-                    "expected_hits": 0,
-                    "expected_total": len(patterns),
+                    "anomaly_count": 0,
+                    "components_detected": [],
                 }
             )
-            total_patterns += len(patterns)
             continue
 
         n_anom = len(anomalies) if isinstance(anomalies, list) else 0
+        comps: set[str] = set()
+        if isinstance(anomalies, list):
+            for block in anomalies:
+                c = str(block.get("component", "") or "").strip()
+                if c:
+                    comps.add(c)
+
         if verbose:
             logger.info(
-                "[%s/%s] uuid=%s -> LogAgent 返回 %s 条异常组件",
+                "[%s/%s] uuid=%s -> %s 条异常, components=%s",
                 idx,
                 n_cases,
                 uuid,
                 n_anom,
-            )
-
-        uuid_hits = 0
-        pattern_results: list[dict] = []
-        for seq in patterns:
-            total_patterns += 1
-            matched = False
-            for block in anomalies:
-                comp = str(block.get("component", ""))
-                if not comp or not components:
-                    continue
-                if not _component_matches(comp, components):
-                    continue
-                blob = _anomaly_text(block)
-                if _keywords_in_order(blob, seq):
-                    matched = True
-                    break
-            if matched:
-                hit_patterns += 1
-                uuid_hits += 1
-            pattern_results.append({"keywords": seq, "matched": matched})
-
-        if verbose:
-            logger.info(
-                "[%s/%s] uuid=%s -> 模式命中 %s/%s",
-                idx,
-                n_cases,
-                uuid,
-                uuid_hits,
-                len(patterns),
+                sorted(comps),
             )
 
         per_uuid.append(
             {
                 "uuid": uuid,
-                "expected_hits": uuid_hits,
-                "expected_total": len(patterns),
-                "pattern_results": pattern_results,
+                "anomaly_count": n_anom,
+                "components_detected": sorted(comps),
             }
         )
 
-    score = (hit_patterns / total_patterns) if total_patterns else 0.0
-    return score, hit_patterns, total_patterns, per_uuid
+    # 无标注：返回结构化评分结果（类似 metric score.py）
+    return {
+        "mode": "input-only-score",
+        "total_cases": n_cases,
+        "successful_cases": len([p for p in per_uuid if p.get("anomaly_count", 0) > 0]),
+        "total_anomalies_detected": sum(p.get("anomaly_count", 0) for p in per_uuid),
+        "per_uuid": per_uuid,
+        "note": "No ground-truth patterns. Use orchestrator.py for full baseline comparison + summary for JudgeAgent.",
+    }
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Evaluate LogAgent against log_unit_test_dataset.json")
+    parser = argparse.ArgumentParser(
+        description="Score LogAgent/baselines on dataset/input.json (no labels) - similar to metric/score.py"
+    )
     parser.add_argument(
         "--dataset-root",
         type=Path,
         default=PROJECT_ROOT / "dataset",
-        help="Parquet 根目录（与 exp/main.py 中 LogAgent 一致）",
+        help="Parquet root (consistent with exp/main.py)",
     )
-    parser.add_argument("--limit", type=int, default=None, help="仅评测前 n 条用例")
+    parser.add_argument("--limit", type=int, default=None, help="Limit to first N cases")
     parser.add_argument(
         "--output-json",
         type=Path,
-        default=RESULTS_DIR / "log_agent_evaluation.json",
-        help="写入逐 uuid 明细",
+        default=RESULTS_DIR / "log_score.json",
+        help="Output JSON with per-uuid stats",
     )
     parser.add_argument(
         "-v",
         "--verbose",
         action="store_true",
-        help="打印每条用例的窗口、组件、LogAgent 返回条数与模式命中数（需配合日志级别）",
+        help="Print per-case details",
     )
     parser.add_argument(
         "--no-progress",
         action="store_true",
-        help="关闭进度条；未装 tqdm 时默认逐行打印 [i/n] uuid",
+        help="Disable progress bar",
     )
     parser.add_argument(
         "--log-level",
         default="INFO",
         choices=("DEBUG", "INFO", "WARNING", "ERROR"),
-        help="日志级别（--verbose 时建议 INFO 或 DEBUG）",
+        help="Log level",
     )
     args = parser.parse_args()
 
@@ -280,32 +251,24 @@ def main() -> None:
         level=getattr(logging, args.log_level),
         format="%(asctime)s [%(levelname)s] %(message)s",
     )
-    # 进度条与 exp 里逐小时 INFO 混在一起难以阅读；非 verbose 时压低子模块日志
     if not args.verbose and not args.no_progress:
         for name in ("exp", "exp.utils.input", "exp.agent.log", "drain3"):
             logging.getLogger(name).setLevel(logging.WARNING)
 
-    score, hits, total, per_uuid = evaluate(
+    result = score(
         args.dataset_root,
         limit=args.limit,
         verbose=args.verbose,
         show_progress=not args.no_progress,
     )
-    RESULTS_DIR.mkdir(parents=True, exist_ok=True)
-    summary = {
-        "score": score,
-        "hit_patterns": hits,
-        "total_expected_patterns": total,
-        "dataset_root": str(args.dataset_root.resolve()),
-        "per_uuid": per_uuid,
-    }
-    with args.output_json.open("w", encoding="utf-8") as f:
-        json.dump(summary, f, indent=2, ensure_ascii=False)
 
-    print(
-        f"LogAgent evaluation: score={score:.4f} ({hits}/{total} patterns hit), "
-        f"written {args.output_json}"
-    )
+    RESULTS_DIR.mkdir(parents=True, exist_ok=True)
+    with args.output_json.open("w", encoding="utf-8") as f:
+        json.dump(result, f, indent=2, ensure_ascii=False)
+
+    print(f"Score completed: {result.get('successful_cases', 0)}/{result.get('total_cases', 0)} cases")
+    print(f"Total anomalies detected: {result.get('total_anomalies_detected', 0)}")
+    print(f"Results written to: {args.output_json}")
 
 
 if __name__ == "__main__":

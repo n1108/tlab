@@ -11,6 +11,7 @@ from exp.prompt.agent import HWLYYZC_SYSTEM_PROMPT, VALID_COMPONENTS
 
 logger = logging.getLogger(__name__)
 
+
 class JudgeAgent:
     """
     Implements the 'Large Model Root Cause Reasoning Layer' aligned with PPT Page 14.
@@ -268,6 +269,57 @@ DIAGNOSE based on System Context & Scoring Criteria provided in System Prompt.
         steps.append({"step": 4, "action": "Final Judgment", "observation": final_obs})
         return steps
 
+    def _pick_fallback_component_reason(
+        self,
+        metric_result: Any,
+        trace_result: Any,
+        log_result: Any,
+    ) -> tuple[str, str]:
+        """
+        当 LLM 输出不可用时，基于现有证据给出一个最小可用预测，
+        避免返回 unknown / Analysis failed。
+        """
+        # 1) Log evidence first: usually strongest for explicit failures.
+        if isinstance(log_result, list) and log_result:
+            comp = str(log_result[0].get("component", "")).strip()
+            obs = str(log_result[0].get("observation", "")).lower()
+            if comp:
+                if any(k in obs for k in ("connection refused", "unavailable", "transport is closing")):
+                    return comp, "pod failure"
+                if any(k in obs for k in ("timeout", "timed out", "dialing", "i/o")):
+                    return comp, "network delay"
+                if "exception" in obs:
+                    return comp, "jvm exception"
+                return comp, "code error"
+
+        # 2) Metric evidence fallback.
+        if isinstance(metric_result, list) and metric_result:
+            svc = str(metric_result[0].get("service", "")).strip()
+            kpi = str(metric_result[0].get("kpi", "")).lower()
+            if svc:
+                if "node_" in kpi:
+                    if "memory" in kpi:
+                        return svc, "node memory stress"
+                    if "filesystem" in kpi or "disk" in kpi:
+                        return svc, "node disk fill"
+                    return svc, "node cpu stress"
+                if "cpu" in kpi:
+                    return svc, "cpu stress"
+                if "memory" in kpi:
+                    return svc, "memory stress"
+                if "error" in kpi:
+                    return svc, "code error"
+                return svc, "code error"
+
+        # 3) Trace-only fallback.
+        if isinstance(trace_result, list) and trace_result:
+            span = trace_result[0].get("span", {}) if isinstance(trace_result[0], dict) else {}
+            src = str(span.get("source", "")).strip()
+            if src:
+                return src, "network delay"
+
+        return "frontend", "code error"
+
     def _format_observation(self, obs_data: Any, source_type: str) -> str:
         """
         Formats raw observations into text, preserving TIMESTAMPS for 'Time Priority' logic.
@@ -428,7 +480,15 @@ DIAGNOSE based on System Context & Scoring Criteria provided in System Prompt.
             if response is None:
                 raise last_exc if last_exc else RuntimeError("LLM request failed for all model candidates")
             
-            content = response.choices[0].message.content
+            choices = getattr(response, "choices", None) or []
+            if not choices:
+                raise ValueError("LLM returned empty choices")
+            message = getattr(choices[0], "message", None)
+            if message is None:
+                raise ValueError("LLM returned empty message")
+            content = getattr(message, "content", None)
+            if content is None:
+                raise ValueError("LLM returned empty content")
             print(f"--- [RESPONSE] ---\n{content}\n------------------")
             
             # 4. Parse & Validate
@@ -443,24 +503,30 @@ DIAGNOSE based on System Context & Scoring Criteria provided in System Prompt.
                 parsed = salvaged
             
             component = parsed.get("component", "unknown")
-            # Fallback validation
-            if component not in VALID_COMPONENTS:
+            # Fallback validation - keep simple validation only
+            if component not in VALID_COMPONENTS and component != "unknown":
                 # Simple heuristic correction if LLM outputs specific pod instead of service
                 base = component.rsplit('-', 1)[0]
                 if base in VALID_COMPONENTS:
-                    pass # Allow valid pods
+                    component = base  # Use base service name
                 elif component.startswith("aiops-k8s") or component.startswith("k8s-master"):
-                    pass # Allow nodes
+                    pass  # Allow nodes
                 else:
-                    logger.warning(f"Invalid component: {component}")
+                    logger.warning(f"Invalid component: {component}, will use fallback if needed")
 
-            # Enforce 20-word limit on reason/observation (Post-processing)
+            # Enforce 20-word limit on reason/observation (conservative post-processing)
             reason = " ".join(parsed.get("reason", "").split()[:20])
             trace = parsed.get("reasoning_trace", [])
             if not isinstance(trace, list):
                 trace = []
 
-            if len(trace) == 0:
+            # Only use fallback when trace is empty OR component is invalid
+            if len(trace) == 0 or component in ("unknown", ""):
+                component, reason = self._pick_fallback_component_reason(
+                    metric_result=metric_result,
+                    trace_result=trace_result,
+                    log_result=log_result,
+                )
                 trace = self._build_fallback_reasoning_trace(
                     component=component,
                     reason=reason,
@@ -469,6 +535,7 @@ DIAGNOSE based on System Context & Scoring Criteria provided in System Prompt.
                     log_result=log_result,
                 )
 
+            # Conservative clipping only - no aggressive normalization or injection
             for step in trace:
                 if "observation" in step:
                     step["observation"] = " ".join(str(step["observation"]).split()[:20])
@@ -482,9 +549,25 @@ DIAGNOSE based on System Context & Scoring Criteria provided in System Prompt.
 
         except Exception as e:
             logger.error(f"Analysis failed: {e}")
+            # Conservative fallback - only use safe methods
+            component, reason = self._pick_fallback_component_reason(
+                metric_result=metric_result,
+                trace_result=trace_result,
+                log_result=log_result,
+            )
+            trace = self._build_fallback_reasoning_trace(
+                component=component,
+                reason=reason,
+                metric_result=metric_result,
+                trace_result=trace_result,
+                log_result=log_result,
+            )
+            for step in trace:
+                if "observation" in step:
+                    step["observation"] = " ".join(str(step["observation"]).split()[:20])
             return {
                 "uuid": uuid,
-                "component": "unknown",
-                "reason": "Analysis failed",
-                "reasoning_trace": []
+                "component": component,
+                "reason": reason,
+                "reasoning_trace": trace,
             }

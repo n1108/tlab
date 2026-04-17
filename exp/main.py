@@ -17,6 +17,7 @@ from exp.utils.time import parse_time_range
 
 logger = logging.getLogger(__name__)
 _PRECOMPUTED_METRIC_BLOCKS: Optional[Dict[str, str]] = None
+_PRECOMPUTED_LOG_BLOCKS: Optional[Dict[str, str]] = None
 
 
 def _load_precomputed_metric_blocks(summary_path: str = "results/metric_summary.txt") -> Dict[str, str]:
@@ -54,6 +55,41 @@ def _load_precomputed_metric_blocks(summary_path: str = "results/metric_summary.
     return _PRECOMPUTED_METRIC_BLOCKS
 
 
+def _load_precomputed_log_blocks(summary_path: str = "results/log_summary.txt") -> Dict[str, str]:
+    global _PRECOMPUTED_LOG_BLOCKS
+    if _PRECOMPUTED_LOG_BLOCKS is not None:
+        return _PRECOMPUTED_LOG_BLOCKS
+
+    blocks: Dict[str, str] = {}
+    current_uuid: Optional[str] = None
+    current_lines: List[str] = []
+
+    try:
+        with open(summary_path, "r", encoding="utf-8") as f:
+            for raw_line in f:
+                line = raw_line.rstrip("\n")
+                m = re.match(r"^# \[\d+/\d+\] UUID: (.+)$", line)
+                if m:
+                    if current_uuid is not None:
+                        blocks[current_uuid] = "\n".join(current_lines).strip()
+                    current_uuid = m.group(1).strip()
+                    current_lines = []
+                    continue
+                if current_uuid is not None:
+                    current_lines.append(line)
+
+        if current_uuid is not None:
+            blocks[current_uuid] = "\n".join(current_lines).strip()
+
+        logger.info("Loaded %s log-summary blocks from %s", len(blocks), summary_path)
+    except Exception as e:
+        logger.error("Failed to load log summary blocks from %s: %s", summary_path, e)
+        blocks = {}
+
+    _PRECOMPUTED_LOG_BLOCKS = blocks
+    return _PRECOMPUTED_LOG_BLOCKS
+
+
 def load_precomputed_metrics(uuid: str, dataset: str, top_k: int = 30) -> str:
     """从 metric_summary.txt 中加载指定 uuid 的预计算指标摘要文本"""
     _ = dataset, top_k
@@ -63,6 +99,18 @@ def load_precomputed_metrics(uuid: str, dataset: str, top_k: int = 30) -> str:
         logger.info("Loaded metric summary text for uuid: %s", uuid)
     else:
         logger.warning("No metric summary text found for uuid: %s", uuid)
+    return text
+
+
+def load_precomputed_logs(uuid: str, dataset: str) -> str:
+    """从 log_summary.txt 中加载指定 uuid 的预计算日志摘要文本"""
+    _ = dataset
+    blocks = _load_precomputed_log_blocks("results/log_summary.txt")
+    text = blocks.get(str(uuid), "").strip()
+    if text:
+        logger.info("Loaded log summary text for uuid: %s", uuid)
+    else:
+        logger.warning("No precomputed log summary text found for uuid: %s", uuid)
     return text
 
 
@@ -108,8 +156,15 @@ def process_anomaly(item: Dict, metric_agent: MetricAgent, trace_agent: TraceAge
     # TraceAgent.score 返回 List[Dict] (aggregated links)
     trace_result = trace_agent.score(start_time, end_time)
     
-    # LogAgent.score 返回 List[Dict] (anomalies)
-    log_result = log_agent.score(start_time, end_time)
+    # Log evidence: use precomputed summary when enabled; otherwise call LogAgent.
+    if use_precomputed:
+        log_result = load_precomputed_logs(uuid, log_agent.root_path)
+        if not log_result:
+            logger.warning(f"No precomputed log summary found for uuid: {uuid}, falling back to LogAgent")
+            log_result = log_agent.score(start_time, end_time)
+    else:
+        # LogAgent.score 返回 List[Dict] (anomalies)
+        log_result = log_agent.score(start_time, end_time)
 
     # 2. 将原始结果传给 JudgeAgent 进行融合推理
     # 如果有预计算指标的提示信息，添加到 description 中一起传给大模型
@@ -213,7 +268,7 @@ if __name__ == "__main__":
     )
     parser.add_argument('--log_level', type=str, default='INFO')
     parser.add_argument('--use_precomputed', action='store_true', 
-                        help='使用 results/metric_summary.txt 中对应 UUID 的指标摘要，而非调用 MetricAgent')
+                        help='使用 results/metric_summary.txt 与 results/log_summary.txt 的预计算摘要（缺失时回退到在线 Agent）')
     parser.add_argument('--precomputed_top_k', type=int, default=30,
                         help='兼容旧参数；当前使用 metric_summary.txt 时该参数不生效')
     parser.add_argument('--llm_provider', type=str, default='deepseek', choices=['deepseek', 'yuzo'],

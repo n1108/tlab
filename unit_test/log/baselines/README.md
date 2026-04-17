@@ -1,30 +1,59 @@
-# Log baselines（LightAD 移植）
+# Log Baselines - 清理后版本
 
-本目录包含对 [LightAD](https://github.com/BoxiYu/LightAD)（ICSE'24）中 **KNN / 决策树 / SLFN（`sklearn` MLPClassifier）** 分类器的代码移植与适配脚本。
+本目录已**大幅整理**，现在结构清晰：
 
-| 文件 | 说明 |
-|------|------|
-| `lightad_classifiers.py` | 与上游 `models/classifiers.py` 一致的 `KNN` / `decision_tree` / `MLP` 封装。 |
-| `loader.py` | 从 tlab `dataset/.../log-parquet` 按时间窗加载日志行（不过滤 ERROR 关键词，供向量化）。 |
-| `run_comparison.py` | 在 `log_unit_test_dataset.json` 上训练弱监督分类器，与 **LogAgent** 用同一关键词召回指标对比，并生成 `results/baseline_comparison_report.md`。 |
+- **orchestrator.py** 是**唯一主要入口**，负责运行所有 baseline、生成预计算结果文件，并汇总成 `results/log_summary.txt` 供 JudgeAgent 使用。
+- 每个 baseline 都有独立实现（放在 `baselines/` 下）。
+- `neural_log/` 是完全独立的 NeuralLog 项目复现文件夹。
+- 旧的分散预计算脚本（precompute_*.py、generate_log_summary.py、log_summary_common.py）已删除。
 
-上游论文引用：
+## 当前文件结构
 
-```bibtex
-@inproceedings{10.1145/3597503.3623308,
-  author = {Yu, Boxi and Yao, Jiayi and Fu, Qiuai and others},
-  title = {Deep Learning or Classical Machine Learning? An Empirical Study on Log-Based Anomaly Detection},
-  year = {2024},
-  booktitle = {ICSE '24}
-}
+```
+baselines/
+├── orchestrator.py              ← **唯一推荐主入口**（运行 baseline + 生成 summary）
+├── loader.py                    ← 共享日志加载工具
+├── input_cases.py               ← 从 input.json 加载时间窗（核心共享工具）
+├── baselines/
+│   ├── __init__.py
+│   ├── lightad.py               ← KNN / DT / SLFN
+│   ├── neural_log.py
+│   └── log_agent.py
+├── neural_log/                  ← NeuralLog 原项目代码（独立）
+│   ├── baseline.py
+│   ├── data_loader.py
+│   └── models/
+├── run_comparison.py            ← 独立对比报告（可选）
+├── evaluate_log_agent.py        ← LogAgent 评估工具（可选）
+└── README.md
 ```
 
-运行示例（在仓库根目录）：
+## 使用方式（推荐）
 
 ```bash
-# 全量 225 条用例（默认 --limit-uuids 0）
-python -m unit_test.log.baselines.run_comparison --dataset-root dataset
+# 运行所有 baseline 并生成最新 summary（推荐）
+python -m unit_test.log.baselines.orchestrator --dataset-root dataset
 
-# 子集快速试跑
-python -m unit_test.log.baselines.run_comparison --limit-uuids 40
+# 只跑特定 baseline（更快）
+python -m unit_test.log.baselines.orchestrator --baselines neural_log,log_agent --limit-uuids 50
+
+# 查看帮助
+python -m unit_test.log.baselines.orchestrator --help
 ```
+
+生成的 `results/log_summary.txt` 会包含 `[LOG_AGENT]`、`[LIGHTAD_KNN_BASELINE]`、`[NEURAL_LOG_BASELINE]` 等段落，供 `exp/agent/judge.py` 使用。
+
+---
+
+**当前状态**：
+- `input_cases.py` **核心保留** — orchestrator 和 score 脚本的共享依赖。
+- `evaluate_log_agent.py` **已重构** — 现在以 `score()` 函数为主（类似 `unit_test/metric/score.py`），专注 per-uuid anomaly/component 统计，输出 `log_score.json`。
+- `run_comparison.py` **标记为可选/Deprecated** — 功能与 orchestrator 大量重合。如果不再需要手动对比报告，可以删除。
+- `generate_log_test_data.py` **已删除**。
+
+**推荐使用**：
+```bash
+python -m unit_test.log.baselines.orchestrator --dataset-root dataset
+```
+
+如果你想**彻底清理**评估脚本（run_comparison.py / evaluate_log_agent.py），告诉我，我可以删除它们并更新依赖。

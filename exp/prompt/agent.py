@@ -159,12 +159,6 @@ These pairs are easy to confuse; pick the label whose semantics best fit the **s
 - Keep the reasoning concise, but make sure the final judgment reflects the strongest direct multimodal evidence.
 - Do not over-explain weak side effects if another component has clearer root-cause evidence.
 
-### REASONING TRACE (AUDIT TOKENS)
-Evaluators match concrete tokens. In **each** `observation` (still max **20 words**), start with **one or two** verbatim evidence tokens drawn from the inputs, such as:
-- Metric names: `rrt_max`, `pod_processes`, `client_error_ratio`, `node_memory_usage_rate`, `pod_cpu_usage`, etc.
-- Log/trace phrases you actually see: `deadline`, `Connection refused`, `Error while dialing`, `GCHelper`, `corruption`, `packet loss`.
-Put these tokens **early** in the sentence so they are not truncated away in downstream processing.
-
 ### OUTPUT FORMAT
 Strictly output a JSON object. Ensure `reason` and `observation` are under **20 words**.
 {{
