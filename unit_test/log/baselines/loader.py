@@ -16,9 +16,12 @@ from exp.utils.input import load_parquet_by_hour
 logger = logging.getLogger(__name__)
 
 
-def _extract_message_text(raw_message: str | None) -> str | None:
-    if raw_message is None:
+def _extract_message_text(raw_message: object) -> str | None:
+    """message 列可能为 NaN（读入为 float）、None 或非 str，需先规范化再 strip。"""
+    if raw_message is None or pd.isna(raw_message):
         return None
+    if not isinstance(raw_message, str):
+        raw_message = str(raw_message)
     log_content = raw_message
     if raw_message.strip().startswith("{"):
         try:

@@ -36,6 +36,12 @@ from unit_test.log.input_cases import load_input_json_cases
 from unit_test.log.baselines.baselines.lightad import LightADBaseline
 from unit_test.log.baselines.baselines.neural_log import NeuralLogBaseline
 from unit_test.log.baselines.baselines.log_agent import LogAgentBaseline
+from unit_test.log.baselines.run_comparison import (
+    _neural_log_has_positive_on_gt_pods,
+    load_log_unit_test_ground_truth,
+)
+
+LOG_UNIT_TEST_GT_PATH = PROJECT_ROOT / "unit_test" / "log" / "log_unit_test_dataset.json"
 
 logger = logging.getLogger(__name__)
 
@@ -73,6 +79,9 @@ class BaselineOrchestrator:
 
         results = {}
         cases_to_run = self.cases[:limit] if limit else self.cases
+        nl_gt_map: dict[str, dict[str, object]] = {}
+        if name == "neural_log":
+            nl_gt_map = load_log_unit_test_ground_truth(LOG_UNIT_TEST_GT_PATH)
 
         for idx, item in enumerate(cases_to_run, 1):
             uuid = str(item.get("uuid", ""))
@@ -98,12 +107,27 @@ class BaselineOrchestrator:
                 normal_texts = self.rng.sample(normal_texts, self.max_normal_lines)
 
             result = baseline.score(fault_texts, normal_texts)
-            results[uuid] = {
+            row: dict[str, Any] = {
                 "idx": idx,
                 "uuid": uuid,
                 "text": result.get("text", "- no anomaly"),
                 "count": result.get("count", 0),
             }
+            if name == "neural_log" and nl_gt_map:
+                gt_entry = nl_gt_map.get(uuid)
+                comps = set(gt_entry.get("components") or []) if isinstance(gt_entry, dict) else set()
+                has_flag = False
+                if comps and not fault_df.empty:
+                    pos_nl = np.zeros(len(fault_df), dtype=bool)
+                    try:
+                        impl = getattr(baseline, "_impl", baseline)
+                        impl.fit(normal_texts)
+                        pos_nl = impl.predict(fault_texts).astype(bool)
+                    except Exception:
+                        pass
+                    has_flag = bool(_neural_log_has_positive_on_gt_pods(fault_df, pos_nl, comps))
+                row["has_if_positive_on_gt_pod"] = has_flag
+            results[uuid] = row
 
             if idx % 20 == 0:
                 logger.info(f"[{name}] processed {idx}/{len(cases_to_run)}")
@@ -150,17 +174,20 @@ class BaselineOrchestrator:
                 f.write("- Aggregated from multiple baselines (LogAgent, LightAD, NeuralLog)\n\n")
 
                 f.write("[LOG_AGENT]\n")
-                f.write(results.get("text", "- no anomaly") + "\n\n")
+                log_text = results.get("text", "- no anomaly")
+                f.write(log_text + "\n\n")
 
                 for baseline_name in ["lightad_knn", "lightad_dt", "lightad_slfn", "neural_log"]:
                     if baseline_name in all_results and uuid in all_results[baseline_name]:
                         name_display = baseline_name.replace("lightad_", "LightAD-").upper()
                         f.write(f"[{name_display}_BASELINE]\n")
-                        f.write(all_results[baseline_name][uuid].get("text", "- no anomaly") + "\n\n")
+                        baseline_text = all_results[baseline_name][uuid].get("text", "- no anomaly")
+                        f.write(baseline_text + "\n\n")
 
-                f.write("[SUMMARY_HINT]\n")
-                f.write("- This summary combines evidence from multiple detection methods.\n")
-                f.write("- Use for JudgeAgent as comprehensive log evidence.\n\n")
+                f.write("[LOG_SUMMARY_FOR_JUDGE]\n")
+                f.write("This section provides multimodal log evidence for root cause analysis.\n")
+                f.write("Focus on components with repeated errors, connection issues, or abnormal patterns.\n")
+                f.write("Cross-reference with metrics and traces for final judgment.\n\n")
                 f.write("=" * 80 + "\n\n")
 
         logger.info(f"Final summary written to {summary_path}")
